@@ -1,14 +1,10 @@
-
-from curses import halfdelay
+import os, json, glob, cv2, torch
 import numpy as np
-import os
-import json
-import cv2
-import glob
-from PIL import Image
-from PIL import ImageFile
+from tqdm import tqdm
+from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, random_split
 
@@ -17,6 +13,10 @@ def guassian_kernel(size_w, size_h, center_x, center_y, sigma):
     gridy, gridx = np.mgrid[:size_h, :size_w]
     D2 = (gridx - center_x) ** 2 + (gridy - center_y) ** 2
     return np.exp(-D2 / 2.0 / sigma / sigma)
+
+def to_tensor(data):
+    data = torch.from_numpy(data.transpose((2, 0, 1))).to(torch.float32)
+    return data
 
 
 class HandDataset(Dataset):
@@ -47,14 +47,15 @@ class HandDataset(Dataset):
         heatmap = np.zeros((h, w, len(landmark) + 1), dtype=np.float32)
         for i in range(len(landmark)):
             # resize from 368 to 46
-            x, y = landmark[i][0], landmark[i][1]
-            heat_map = guassian_kernel(size_h=h, size_w=w, center_x=x, center_y=y, sigma=3.0)
+            x, y = landmark[i][0] * w, landmark[i][1] * h
+            heat_map = guassian_kernel(size_h=h, size_w=w, center_x=x, center_y=y, sigma=0.5)
             heat_map[heat_map > 1] = 1
             heat_map[heat_map < 0.0099] = 0
             heatmap[:, :, i + 1] = heat_map
 
         # for background
         heatmap[:, :, 0] = 1.0 - np.max(heatmap[:, :, 1:], axis=2)
+        heatmap = to_tensor(heatmap)
 
         return img, heatmap, label  
             
@@ -104,3 +105,40 @@ def load_data(data_dir, batch_size):
     val_dataloader = DataLoader(valid_set, batch_size=batch_size, shuffle=False, num_workers=2)
 
     return train_set, valid_set, train_dataloader, val_dataloader
+
+
+if __name__ == "__main__":
+    def imshow(img):
+        img = img * 0.5 + 0.5     # unnormalize
+        npimg = img.numpy()
+        plt.figure(figsize=(15, 5))
+        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+        plt.show()
+
+    data_dir = "hagrid/hagrid_resize"
+    batch_size = 1
+
+    train_set, valid_set, train_dataloader, val_dataloader = load_data(data_dir, batch_size)
+    print(train_set.__len__())
+    print(valid_set.__len__())
+    for i, (images, landmarks, labels) in enumerate(tqdm(train_dataloader)):
+        skeletons = landmarks[0]
+        skeletons = np.array(skeletons)
+        images = images * 0.5 + 0.5
+        img = images[0]
+        img = np.array(img).transpose(1, 2, 0)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+        for i in range(22):
+            skeleton = skeletons[:, :, i]
+            skeleton = cv2.resize(skeleton, (368, 368))
+            skeleton = cv2.normalize(skeleton, skeleton, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            skeleton = cv2.applyColorMap(skeleton, cv2.COLORMAP_JET)
+            
+            display = img * 0.8 + skeleton * 0.2
+            cv2.imshow("img", display)
+            cv2.waitKey(0)
+        
+        print(labels)
+        #imshow(torchvision.utils.make_grid(images))
+        exit(1)
