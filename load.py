@@ -123,7 +123,7 @@ if __name__ == "__main__":
     print(valid_set.__len__())
     for i, (images, landmarks, labels) in enumerate(tqdm(train_dataloader)):
         skeletons = landmarks[0]
-        skeletons = np.array(skeletons)
+        skeletons = np.array(skeletons).transpose(1, 2, 0)
         images = images * 0.5 + 0.5
         img = images[0]
         img = np.array(img).transpose(1, 2, 0)
