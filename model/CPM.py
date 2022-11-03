@@ -1,78 +1,74 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
+from model.HRNet import HRNet
 
 
 class conv_block(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(conv_block, self).__init__()
         self.block = nn.Sequential(
-            nn.Conv2d(in_channels, 128, kernel_size=11, padding=5),
+            nn.Conv2d(in_channels, 128, kernel_size=5, stride=1, padding=2),
             nn.ReLU(),
-            nn.Conv2d(128, 128, kernel_size=11, stride=1, padding=5),
+            nn.Conv2d(128, 128, kernel_size=5, stride=1, padding=2),
             nn.ReLU(),
-            nn.Conv2d(128, 128, kernel_size=11, stride=1, padding=5),
+            nn.Conv2d(128, 128, kernel_size=5, stride=1, padding=2),
             nn.ReLU(),
             nn.Conv2d(128, 128, kernel_size=1, stride=1, padding=0),
             nn.ReLU(),
             nn.Conv2d(128, out_channels, kernel_size=1, stride=1, padding=0)
         )
-
     def forward(self, x):
         x = self.block(x)
         return x
 
 class ConvolutionalPoseMachine(nn.Module):
-    def __init__(self, n_joints):
+    def __init__(self, num_masks, num_heatmaps, c=18):
         super(ConvolutionalPoseMachine, self).__init__()
-        self.share_features = nn.Sequential(
-            nn.Conv2d(3, 128, kernel_size=9, stride=1, padding=4),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-            nn.Conv2d(128, 128, kernel_size=9, stride=1, padding=4),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-            nn.Conv2d(128, 128, kernel_size=9, stride=1, padding=4),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-            nn.Conv2d(128, 32, kernel_size=5, stride=1, padding=2),
-            nn.ReLU()
-        )
+        self.num_masks = num_masks
+        self.num_heatmaps = num_heatmaps
+
+        self.hrnet = HRNet(c, 128)
+
+        # ***** limb segmentation stage *****
         self.block1 = nn.Sequential(
-            nn.Conv2d(32, 512, kernel_size=9, stride=1, padding=4),
+            nn.Conv2d(128, 512, kernel_size=5, stride=1, padding=2),
             nn.ReLU(),
             nn.Conv2d(512, 512, kernel_size=1, stride=1, padding=0),
             nn.ReLU(),
-            nn.Conv2d(512, n_joints + 1, kernel_size=1, stride=1, padding=0)
+            nn.Conv2d(512, self.num_masks, kernel_size=1, stride=1, padding=0)
         )
-        self.block2 = conv_block(32 + n_joints + 1, n_joints + 1)
-        self.block3 = conv_block(32 + n_joints + 1, n_joints + 1)
-        self.block4 = conv_block(32 + n_joints + 1, n_joints + 1)
+        self.block2 = conv_block(128 + self.num_masks, self.num_masks)
+        self.block3 = conv_block(128 + self.num_masks, self.num_masks)
 
-    def _stage1(self, x):
-        x = self.block1(x)
-        return x
+        # ***** keypoint detection stage *****
+        self.block4 = conv_block(128 + self.num_masks, self.num_heatmaps)
+        self.block5 = conv_block(128 + self.num_masks + self.num_heatmaps, self.num_heatmaps)
+        self.block6 = conv_block(128 + self.num_masks + self.num_heatmaps, self.num_heatmaps)
 
-    def _stage2(self, x, heatmap):
-        x = torch.cat([x, heatmap], dim=1)
-        x = self.block2(x)
-        return x
 
-    def _stage3(self, x, heatmap):
-        x = torch.cat([x, heatmap], dim=1)
-        x = self.block3(x)
-        return x
+    def forward(self, image):
+        # ***** backbone *****
+        features = self.hrnet(image)
 
-    def _stage4(self, x, heatmap):
-        x = torch.cat([x, heatmap], dim=1)
-        x = self.block4(x)
-        return x
+        # ***** limb segmentation stage *****
+        stage1 = self.block1(features)
+        stage2 = self.block2(torch.cat([features, stage1], dim=1))
+        stage3 = self.block3(torch.cat([features, stage2], dim=1))
 
-    def forward(self, x):
-        share = self.share_features(x)
+        # ***** keypoint detection stage *****
+        stage4 = self.block4(torch.cat([features, stage3], dim=1))
+        stage5 = self.block5(torch.cat([features, stage3, stage4], dim=1))
+        stage6 = self.block6(torch.cat([features, stage3, stage5], dim=1))
 
-        heatmap1 = self._stage1(share)
-        heatmap2 = self._stage2(share, heatmap1)
-        heatmap3 = self._stage3(share, heatmap2)
-        heatmap4 = self._stage4(share, heatmap3)
-        return heatmap1, heatmap2, heatmap3, heatmap4
+        limbmasks = torch.cat([stage1, stage2, stage3], dim=1)
+        keypoints = torch.cat([stage4, stage5, stage6], dim=1)
+
+        # Add sigmoid for limb
+        return limbmasks.sigmoid(), keypoints
+
+if __name__ == '__main__':
+    model = ConvolutionalPoseMachine(7, 21)
+    y = model(torch.ones(1, 3, 384, 384))
+    print(y[0].shape, y[1].shape)
+    print(torch.min(y).item(), torch.mean(y).item(), torch.max(y).item())
