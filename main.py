@@ -5,11 +5,12 @@ import cv2
 
 from load import load_data
 from model.CPM import ConvolutionalPoseMachine
+from loss import mse_loss, ce_loss
 from torchsummary import summary
 
 
 def predict(weight_path, data_dir, batch_size):
-    model = ConvolutionalPoseMachine(21)
+    model = ConvolutionalPoseMachine(7, 21)
     model.load_state_dict(torch.load(weight_path, map_location=torch.device('cpu')))
 
     train_set, valid_set, train_dataloader, val_dataloader = load_data(data_dir, batch_size)
@@ -24,8 +25,9 @@ def predict(weight_path, data_dir, batch_size):
     model.eval()
     with torch.no_grad():
         correct_test = 0.0
-        for i, (images, landmarks, labels) in enumerate(tqdm(val_dataloader)):
-            heatmap1, heatmap2, heatmap3, heatmap4 = model(images)
+        for i, images, keypoints_targ, limbmasks_targ, labels in enumerate(tqdm(val_dataloader)):
+            limbmasks_pred, keypoints_pred = model(images)
+            heatmap4 = torch.nn.Softmax(heatmap4)
 
             skeletons = heatmap4[0]
             skeletons = np.array(skeletons).transpose(1, 2, 0)
@@ -56,31 +58,29 @@ def train(data_dir, batch_size, learning_rate, momentum, weight_decay, epochs):
     print("The number of data in train set: ", train_set.__len__())
     print("The number of data in valid set: ", valid_set.__len__())
 
-    model = ConvolutionalPoseMachine(21)
+    model = ConvolutionalPoseMachine(7, 21)
 
     # define loss function and optimizer
-    criterion = torch.nn.MSELoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
-
-    heat_weight = 46 * 46 * 22 / 1.0
 
     for i in range(epochs):
         train_loss, val_loss = 0, 0
         train_acc, val_acc = 0, 0
 
         model.train()
-        for j, (images, landmarks, labels) in enumerate(tqdm(train_dataloader)):
-            optimizer.zero_grad()
-            heatmap1, heatmap2, heatmap3, heatmap4 = model(images)
-        
-            loss1 = criterion(heatmap1, landmarks) * heat_weight
-            loss2 = criterion(heatmap2, landmarks) * heat_weight
-            loss3 = criterion(heatmap3, landmarks) * heat_weight
-            loss4 = criterion(heatmap4, landmarks) * heat_weight
+        for i, (images, keypoints_targ, limbmasks_targ, labels) in enumerate(tqdm(train_dataloader)):
+            limbmasks_targ = torch.cat([limbmasks_targ] * 3, dim=1)
+            keypoints_targ = torch.cat([keypoints_targ] * 3, dim=1)  
 
-            loss = loss1 + loss2 + loss3 + loss4
+            limbmasks_pred, keypoints_pred = model(images)
 
-            print("loss1: {}, loss2: {}, loss3: {}, loss4: {}".format(loss1.item(), loss2.item(), loss3.item(), loss4.item()))
+            g1_loss = ce_loss(limbmasks_pred[:, :1, ...], limbmasks_targ[:, :1, ...])
+            g6_loss = ce_loss(limbmasks_pred[:, 1:, ...], limbmasks_targ[:, 1:, ...])
+            mse_loss = mse_loss(keypoints_pred, keypoints_targ)
+
+            loss = g1_loss + g6_loss + mse_loss
+
+            print("g1_loss: {}, g6_loss: {}, mse_loss: {}".format(g1_loss.item(), g6_loss.item(), mse_loss.item()))
 
             loss.backward()
             optimizer.step()
@@ -90,7 +90,7 @@ def train(data_dir, batch_size, learning_rate, momentum, weight_decay, epochs):
             #train_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
 
         model.eval()
-        for j, (images, landmarks, labels) in enumerate(tqdm(val_dataloader)):
+        """for j, (images, landmarks, labels) in enumerate(tqdm(val_dataloader)):
             with torch.no_grad():
 
                 heatmap1, heatmap2, heatmap3, heatmap4 = model(images)
@@ -103,7 +103,7 @@ def train(data_dir, batch_size, learning_rate, momentum, weight_decay, epochs):
                 loss = loss1 + loss2 + loss3 + loss4
                 val_loss += loss.item()
                 #prediction = torch.argmax(outputs.detach(), dim=1)
-                #val_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
+                #val_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()"""
             
         train_loss /= train_dataloader.__len__()
         train_acc /= train_dataloader.__len__()
@@ -116,7 +116,7 @@ def train(data_dir, batch_size, learning_rate, momentum, weight_decay, epochs):
 
 if __name__ == "__main__":
     data_dir = "hagrid/hagrid_resize"
-    weight_path = "weights/CPM.model"
+    weight_path = "weights/CPM2.model"
     batch_size = 16
     learning_rate = 0.1
     momentum = 0.9
@@ -126,5 +126,5 @@ if __name__ == "__main__":
     #model = ConvolutionalPoseMachine(21)
     #summary(model, (3, 368, 368))
 
-    #train(data_dir, batch_size, learning_rate, momentum, weight_decay, epochs)
-    predict(weight_path, data_dir, 1)
+    train(data_dir, batch_size, learning_rate, momentum, weight_decay, epochs)
+    #predict(weight_path, data_dir, 1)
