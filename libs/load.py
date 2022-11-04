@@ -1,26 +1,14 @@
 import os, json, glob, cv2, torch
 import numpy as np
-from tqdm import tqdm
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, random_split
 
 
-def guassian_kernel(size_w, size_h, center_x, center_y, sigma):
-    gridy, gridx = np.mgrid[:size_h, :size_w]
-    D2 = (gridx - center_x) ** 2 + (gridy - center_y) ** 2
-    return np.exp(-D2 / 2.0 / sigma / sigma)
-
-def to_tensor(data):
-    data = torch.from_numpy(data.transpose((2, 0, 1)))
-    return data
-
-
 class HandDataset(Dataset):
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, img_size, sigma):
         super().__init__()
         self.classes = {"call" : 0, "dislike" : 1, "fist" : 2, "like" : 3, "mute" : 4, 
                             "ok" : 5, "one" : 6, "palm" : 7, "peace" : 8, "stop" : 9}
@@ -43,10 +31,10 @@ class HandDataset(Dataset):
         self.bboxes = bboxes
         self.landmarks = landmarks
         self.labels = labels
-        self.img_size = 368
+        self.img_size = img_size
         self.stride = 1
         self.map_size = self.img_size // self.stride
-        self.sigma = 1
+        self.sigma = sigma
         
     def __getitem__(self, idx):
         image_path = self.imgs[idx]
@@ -67,10 +55,6 @@ class HandDataset(Dataset):
         lsh_maps6 = self.limb_group(lsh_maps, 6, self.groups6)
         lsh_maps = np.concatenate([lsh_maps1, lsh_maps6])
         lsh_maps = torch.from_numpy(lsh_maps)
-
-        # for background
-        #heatmap[:, :, 0] = 1.0 - np.max(heatmap[:, :, 1:], axis=2)
-        #heatmap = to_tensor(heatmap)
 
         return img, heatmap, lsh_maps, label  
             
@@ -162,33 +146,34 @@ class HandDataset(Dataset):
         return images, bboxes_output, landmarks_output, labels_output
 
 
-def load_data(data_dir, batch_size):
-    train_set = HandDataset(data_dir)
-    train_set_size = int(len(train_set) * 0.8)
-    valid_set_size = len(train_set) - train_set_size
-    train_set, valid_set = random_split(train_set, [train_set_size, valid_set_size])
+def load_data(data_dir, img_size, sigma, batch_size, action):
+    if action == "train":
+        train_set = HandDataset(data_dir, img_size, sigma)
+        train_set_size = int(len(train_set) * 0.8)
+        valid_set_size = len(train_set) - train_set_size
+        train_set, valid_set = random_split(train_set, [train_set_size, valid_set_size])
 
-    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=2)
-    val_dataloader = DataLoader(valid_set, batch_size=batch_size, shuffle=False, num_workers=2)
+        train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4)
+        val_dataloader = DataLoader(valid_set, batch_size=batch_size, shuffle=False, num_workers=4)
+        return train_set, valid_set, train_dataloader, val_dataloader
 
-    return train_set, valid_set, train_dataloader, val_dataloader
+    elif action == "test":
+        test_set = HandDataset(data_dir, img_size, sigma)
+        test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=4)
+        return test_set, test_dataloader
+
+    else:
+        raise NotImplementedError("please specify the correct action : [train, test]")
 
 
 if __name__ == "__main__":
-    def imshow(img):
-        img = img * 0.5 + 0.5     # unnormalize
-        npimg = img.numpy()
-        plt.figure(figsize=(15, 5))
-        plt.imshow(np.transpose(npimg, (1, 2, 0)))
-        plt.show()
-
     data_dir = "hagrid/hagrid_resize"
     batch_size = 1
 
     train_set, valid_set, train_dataloader, val_dataloader = load_data(data_dir, batch_size)
-    print(train_set.__len__())
-    print(valid_set.__len__())
-    for i, (images, landmarks, lsh_maps, labels) in enumerate(tqdm(train_dataloader)):
+    print("The number of data in train set: ", train_set.__len__())
+    print("The number of data in valid set: ", valid_set.__len__())
+    for i, (images, landmarks, lsh_maps, labels) in enumerate(train_dataloader):
         skeletons = torch.cat([landmarks[0], lsh_maps[0]])
         skeletons = np.array(skeletons).transpose(1, 2, 0)
         images = images * 0.5 + 0.5
@@ -198,13 +183,16 @@ if __name__ == "__main__":
 
         for i in range(29):
             skeleton = skeletons[:, :, i]
-            #skeleton = cv2.resize(skeleton, (368, 368))
+            
             skeleton = cv2.normalize(skeleton, skeleton, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             skeleton = cv2.applyColorMap(skeleton, cv2.COLORMAP_JET)
             
             display = img * 0.8 + skeleton * 0.2
             cv2.imshow("img", display)
-            cv2.waitKey(0)
+            key = cv2.waitKey(0)
+            if key == ord('q'):
+                print("quit display")
+                exit(1)
         
         print(labels)
-        #imshow(torchvision.utils.make_grid(images))
+
