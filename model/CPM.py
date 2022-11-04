@@ -23,7 +23,7 @@ class conv_block(nn.Module):
         return x
 
 class ConvolutionalPoseMachine(nn.Module):
-    def __init__(self, num_masks, num_heatmaps, c=18):
+    def __init__(self, num_masks, num_heatmaps, c=30):
         super(ConvolutionalPoseMachine, self).__init__()
         self.num_masks = num_masks
         self.num_heatmaps = num_heatmaps
@@ -61,11 +61,12 @@ class ConvolutionalPoseMachine(nn.Module):
         stage5 = self.block5(torch.cat([features, stage3, stage4], dim=1))
         stage6 = self.block6(torch.cat([features, stage3, stage5], dim=1))
 
-        limbmasks = torch.cat([stage1, stage2, stage3], dim=1)
+        g6_limbmasks = torch.cat([stage1[:, :1, ...], stage2[:, :1, ...], stage3[:, :1, ...]], dim=1)
+        g1_limbmasks = torch.cat([stage1[:, 1:, ...], stage2[:, 1:, ...], stage3[:, 1:, ...]], dim=1)
         keypoints = torch.cat([stage4, stage5, stage6], dim=1)
 
         # Add sigmoid for limb
-        return limbmasks.sigmoid(), keypoints
+        return g6_limbmasks.sigmoid(), g1_limbmasks.sigmoid(), keypoints
 
 if __name__ == '__main__':
     model = ConvolutionalPoseMachine(7, 21)

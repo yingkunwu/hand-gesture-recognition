@@ -3,11 +3,6 @@ from torch import nn
 import torch.nn.functional as F
 
 
-torch.manual_seed(42)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-
-
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -128,6 +123,7 @@ class StageModule(nn.Module):
                     fuse_layer.append(nn.Sequential(*ops))
             self.fuse_layers.append(nn.ModuleList(fuse_layer))
 
+        self.fuse_layers = nn.ModuleList(self.fuse_layers)
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
@@ -243,7 +239,7 @@ class HRNet(nn.Module):
                 # New branch derives from the "upper" branch only
                 y.append(self.transition1[i](x))
             else :
-                y.append(x[i])
+                y.append(x)
 
         # Stage 2
         x = self.stage2(y)
@@ -273,7 +269,8 @@ class HRNet(nn.Module):
 
 
 if __name__ == '__main__':
-    model = HRNet(32, 17, 0.1)
-    y = model(torch.ones(1, 3, 384, 384))
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = HRNet(32, 17, 0.1).to(device)
+    y = model(torch.ones(1, 3, 384, 384).to(device))
     print(y.shape)
     print(torch.min(y).item(), torch.mean(y).item(), torch.max(y).item())
