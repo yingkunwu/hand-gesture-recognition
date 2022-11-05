@@ -47,32 +47,46 @@ class Test:
             for i, (images, keypoints, limbmasks, labels) in enumerate(tqdm(test_dataloader)):    
                 images = images.to(self.device)
                 g6_pred, g1_pred, kp_pred = self.model(images)
+
+                images = images * 0.5 + 0.5
+
+                g6_pred = g6_pred[:, -1:, ...]
+                g1_pred = g1_pred[:, -6:, ...]
+                kp_pred = kp_pred[:, -22:, ...]
+                g6_pred = F.interpolate(g6_pred, size=(self.args.img_size, self.args.img_size), 
+                                            mode='bilinear', align_corners=True)
+                g1_pred = F.interpolate(g1_pred, size=(self.args.img_size, self.args.img_size), 
+                                            mode='bilinear', align_corners=True)
                 kp_pred = F.interpolate(kp_pred, size=(self.args.img_size, self.args.img_size), 
                                             mode='bilinear', align_corners=True)
 
-                for i in range(len(kp_pred)):
+                pred_maps = torch.cat([g6_pred, g1_pred, kp_pred], dim=1)
+
+                targ_maps = torch.cat([limbmasks, keypoints], dim=1)
+
+                for i in range(len(pred_maps)):
                     img = images[i]
                     img = img.cpu().numpy().transpose(1, 2, 0)
                     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-                    skeletons = kp_pred[i, -22:, ...]
-                    skeletons = skeletons.cpu().numpy().transpose(1, 2, 0)
-                    landmarks = keypoints[i]
-                    landmarks = landmarks.cpu().numpy().transpose(1, 2, 0)
+                    preds = pred_maps[i]
+                    preds = preds.cpu().numpy().transpose(1, 2, 0)
+                    targs = targ_maps[i]
+                    targs = targs.cpu().numpy().transpose(1, 2, 0)
 
                     for i in range(22):
-                        skeleton = skeletons[:, :, i]
-                        skeleton = cv2.normalize(skeleton, skeleton, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
+                        pred = preds[:, :, i]
+                        pred = cv2.normalize(pred, pred, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
                                                     dtype=cv2.CV_8U)
-                        skeleton = cv2.applyColorMap(skeleton, cv2.COLORMAP_JET)
+                        pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
 
-                        landmark = landmarks[:, :, i]
-                        landmark = cv2.normalize(landmark, skeleton, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
+                        targ = targs[:, :, i]
+                        targ = cv2.normalize(targ, targ, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
                                                     dtype=cv2.CV_8U)
-                        landmark = cv2.applyColorMap(landmark, cv2.COLORMAP_JET)
+                        targ = cv2.applyColorMap(targ, cv2.COLORMAP_JET)
                     
-                        display1 = img * 0.8 + skeleton * 0.2
-                        display2 = img * 0.8 + landmark * 0.2
+                        display1 = img * 0.8 + pred * 0.2
+                        display2 = img * 0.8 + targ * 0.2
                         display = np.concatenate((display1, display2), axis=1)
                         cv2.imshow("img", display)
                         key = cv2.waitKey(0)
