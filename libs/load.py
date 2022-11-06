@@ -37,19 +37,19 @@ class HandDataset(Dataset):
         self.sigma = sigma
         
     def __getitem__(self, idx):
-        image_path = self.imgs[idx]
+        img = cv2.imread(self.imgs[idx])
+        bbox = np.array(self.bboxes[idx])
         landmark = np.array(self.landmarks[idx])
         label = np.array(self.labels[idx])
 
-        img = Image.open(image_path).convert('RGB')
-        img = img.resize((self.img_size, self.img_size))
+        img, bbox, landmark = self.crop_image(img, bbox, landmark)
+
+        img = cv2.resize(img, (self.img_size, self.img_size), interpolation=cv2.INTER_AREA)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = transforms.ToTensor()(img)
         img = transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))(img)
 
-        landmark[:, 0] = landmark[:, 0] * self.map_size
-        landmark[:, 1] = landmark[:, 1] * self.map_size
         heatmap = self.gen_heatmap(landmark)
-
         lsh_maps = self.generate_lpm(landmark)
         lsh_maps1 = self.limb_group(lsh_maps, 1, self.groups1)
         lsh_maps6 = self.limb_group(lsh_maps, 6, self.groups6)
@@ -61,7 +61,45 @@ class HandDataset(Dataset):
     def __len__(self):
         return len(self.imgs)
 
+    def crop_image(self, img, bbox, landmark):
+        height, width, _ = img.shape
+        x = (bbox[0] + bbox[2] / 2) * width
+        y = (bbox[1] + bbox[3] / 2) * height
+
+        landmark[:, 0] = landmark[:, 0] * width
+        landmark[:, 1] = landmark[:, 1] * height
+
+        size = min(height, width) / 2
+
+        left_bound, right_bound, upper_bound, lower_bound = 0, 0, 0, 0
+        if size - x > 0:
+            right_bound = size * 2
+        elif size - (width - x) > 0:
+            right_bound = width
+            left_bound = width - (size * 2)
+        else :
+            left_bound = x - size
+            right_bound = x + size
+
+        if size - y > 0:
+            lower_bound = size * 2
+        elif size - (height - x) > 0:
+            lower_bound = height
+            upper_bound = height - (size * 2)
+        else :
+            upper_bound = y - size
+            lower_bound = y + size
+
+        img = img[int(upper_bound):int(lower_bound), int(left_bound):int(right_bound)]
+        landmark[:, 0] = landmark[:, 0] - left_bound
+        landmark[:, 1] = landmark[:, 1] - upper_bound
+        landmark = landmark / (size * 2)
+
+        return img, bbox, landmark
+
     def gen_heatmap(self, landmark):
+        landmark[:, 0] = landmark[:, 0] * self.map_size
+        landmark[:, 1] = landmark[:, 1] * self.map_size
         landmark = torch.Tensor(landmark)
 
         grid_x = torch.arange(self.map_size).repeat(self.map_size, 1)
@@ -87,6 +125,28 @@ class HandDataset(Dataset):
             x1, y1 = label[part[0]]        # vector start
             x2, y2 = label[part[1]]        # vector end
 
+            length = np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+            # unit vector
+            v1 = (x2 - x1)/(length + 1e-8)  # in case the length is zero, so add 1e-8
+            v2 = (y2 - y1)/(length + 1e-8)
+
+            dist_along_part = v1 * (x - x1) + v2 * (y - y1)
+            dist_per_part = np.abs(v2 * (x - x1) + (-v1) * (y - y1))
+
+            mask1 = dist_along_part >= 0
+            mask2 = dist_along_part <= length
+            mask3 = dist_per_part <= 10
+            mask = mask1 & mask2 & mask3
+
+            limb_maps[count, :, :] = mask.astype('float32')
+            count += 1
+        return limb_maps
+        """count = 0
+        for part in self.parts:              # 20 parts
+            x1, y1 = label[part[0]]        # vector start
+            x2, y2 = label[part[1]]        # vector end
+
             cross = (x2 - x1) * (x - x1) + (y2 - y1) * (y - y1)
             length2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
             r = (cross + 1e-8) / (length2 + 1e-8)
@@ -104,7 +164,7 @@ class HandDataset(Dataset):
 
             limb_maps[count] = np.exp(-D2 / 2.0 / self.sigma / self.sigma)  # numpy 2d
             count += 1
-        return limb_maps
+        return limb_maps"""
 
     def limb_group(self, limb_maps, groupc, modelgroup):
         # ************ Grouping Limb Maps ************
@@ -167,10 +227,10 @@ def load_data(data_dir, img_size, sigma, batch_size, action):
 
 
 if __name__ == "__main__":
-    data_dir = "hagrid/hagrid_resize"
+    data_dir = "hagrid/hagrid_train"
     batch_size = 1
 
-    train_set, valid_set, train_dataloader, val_dataloader = load_data(data_dir, batch_size)
+    train_set, valid_set, train_dataloader, val_dataloader = load_data(data_dir, 348, 3, batch_size, "train")
     print("The number of data in train set: ", train_set.__len__())
     print("The number of data in valid set: ", valid_set.__len__())
     for i, (images, landmarks, lsh_maps, labels) in enumerate(train_dataloader):
