@@ -1,0 +1,13 @@
+# model
+num_joints: 21
+model_name: "posenet.model"
+
+# dataset
+data_path: "hagrid/hagrid_train"
+batch_size: 32
+img_size: 256
+sigma: 3
+
+# hyperparameters
+epochs: 15
+learning_rate: 0.001
