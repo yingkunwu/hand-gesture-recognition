@@ -1,24 +1,25 @@
-import torch
-import numpy as np
 import cv2
 import os
 import time
-import torch.nn.functional as F
+import yaml
 from tqdm import tqdm
+import numpy as np
+import torch
+import torch.nn.functional as F
 
 from libs.load import load_data
-from libs.options import TestOptions
-from model.CPM import ConvolutionalPoseMachine
+from libs.draw import draw_bones, draw_joints
+from model.posenet import PoseResNet
 
 
 class Test:
-    def __init__(self, args):
-        self.args = args
+    def __init__(self, configs):
+        self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = ConvolutionalPoseMachine(self.args.num_masks, self.args.num_heatmaps)
+        self.model = PoseResNet(nof_joints=self.configs['num_joints'])
 
     def load_model(self):
-        weight_path = os.path.join("weights", self.args.model_name)
+        weight_path = os.path.join("weights", self.configs['model_name'])
         if os.path.exists(weight_path):
             self.model.load_state_dict(torch.load(weight_path, map_location=self.device))
         else:
@@ -28,11 +29,27 @@ class Test:
         self.model = self.model.to(self.device)
         self.model.load_state_dict(weight)
 
+    def get_keypoints(self, pred_heatmap):
+        kpts = []
+        for j in range(self.configs['num_joints']):
+            m = pred_heatmap[:, :, j]
+            h, w = np.unravel_index(m.argmax(), m.shape)
+            x = int(w * self.configs['img_size'] / m.shape[1])
+            y = int(h * self.configs['img_size'] / m.shape[0])
+            kpts.append([x,y])
+        return np.array(kpts)
+
     def detect(self):
         print("Using device:", self.device)
 
-        test_set, test_dataloader = load_data(self.args.data_folder, self.args.img_size, self.args.sigma, 
-                                                self.args.batch_size, "test")
+        test_set, test_dataloader= load_data(
+            self.configs['data_path'], 
+            self.configs['batch_size'], 
+            self.configs['img_size'], 
+            self.configs['num_joints'], 
+            self.configs['sigma'], 
+            "test"
+        )
         print("The number of data in test set: ", test_set.__len__())
 
         self.load_model()
@@ -44,50 +61,59 @@ class Test:
         # Testing Stage
         # --------------------------
         with torch.no_grad():
-            for i, (images, keypoints, limbmasks, labels) in enumerate(tqdm(test_dataloader)):    
+            for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(test_dataloader)):
                 images = images.to(self.device)
-                g6_pred, g1_pred, kp_pred = self.model(images)
+                heatmaps = heatmaps.to(self.device)
 
-                images = images * 0.5 + 0.5
+                output = self.model(images)
+                
+                images[:, 0] = images[:, 0] * 0.229 + 0.485
+                images[:, 1] = images[:, 1] * 0.224 + 0.456
+                images[:, 2] = images[:, 2] * 0.225 + 0.406
+                images = images * 255.0
 
-                g6_pred = g6_pred[:, -1:, ...]
-                g1_pred = g1_pred[:, -6:, ...]
-                kp_pred = kp_pred[:, -22:, ...]
-                g6_pred = F.interpolate(g6_pred, size=(self.args.img_size, self.args.img_size), 
+                landmarks = landmarks * configs['img_size']
+
+                pred_maps = F.interpolate(output, size=(self.configs['img_size'], self.configs['img_size']), 
                                             mode='bilinear', align_corners=True)
-                g1_pred = F.interpolate(g1_pred, size=(self.args.img_size, self.args.img_size), 
-                                            mode='bilinear', align_corners=True)
-                kp_pred = F.interpolate(kp_pred, size=(self.args.img_size, self.args.img_size), 
+                targ_maps = F.interpolate(heatmaps, size=(self.configs['img_size'], self.configs['img_size']), 
                                             mode='bilinear', align_corners=True)
 
-                pred_maps = torch.cat([g6_pred, g1_pred, kp_pred], dim=1)
-
-                targ_maps = torch.cat([limbmasks, keypoints], dim=1)
-
-                for i in range(len(pred_maps)):
+                for i in range(self.configs['batch_size']):
                     img = images[i]
                     img = img.cpu().numpy().transpose(1, 2, 0)
                     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                    pred_img = img.copy()
+                    targ_img = img.copy()
 
-                    preds = pred_maps[i]
-                    preds = preds.cpu().numpy().transpose(1, 2, 0)
-                    targs = targ_maps[i]
-                    targs = targs.cpu().numpy().transpose(1, 2, 0)
+                    pred_heatmap = pred_maps[i].cpu().numpy().transpose(1, 2, 0)
+                    targ_heatmap = targ_maps[i].cpu().numpy().transpose(1, 2, 0)
 
-                    for i in range(22):
-                        pred = preds[:, :, i]
+                    pred_landmark = self.get_keypoints(pred_heatmap)
+                    targ_landmark = landmarks[i].cpu().numpy().astype(np.int32)
+
+                    pred_img = draw_bones(pred_img, pred_landmark)
+                    targ_img = draw_bones(targ_img, targ_landmark)
+
+                    pred_img = draw_joints(pred_img, pred_landmark)
+                    targ_img = draw_joints(targ_img, targ_landmark)
+
+                    for i in range(self.configs['num_joints']):
+                        pred = pred_heatmap[:, :, i]
+                        print(np.unique(pred))
                         pred = cv2.normalize(pred, pred, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
                                                     dtype=cv2.CV_8U)
                         pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
 
-                        targ = targs[:, :, i]
+                        targ = targ_heatmap[:, :, i]
                         targ = cv2.normalize(targ, targ, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
                                                     dtype=cv2.CV_8U)
                         targ = cv2.applyColorMap(targ, cv2.COLORMAP_JET)
                     
-                        display1 = img * 0.8 + pred * 0.2
-                        display2 = img * 0.8 + targ * 0.2
-                        display = np.concatenate((display1, display2), axis=1)
+                        display1 = pred_img * 0.8 + pred * 0.2
+                        display2 = targ_img * 0.8 + targ * 0.2
+
+                        display = np.concatenate((display1, display2), axis=1).astype(np.uint8)
                         cv2.imshow("img", display)
                         key = cv2.waitKey(0)
                         if key == ord('q'):
@@ -101,9 +127,13 @@ class Test:
 
 
 if __name__ == "__main__":
-    parser = TestOptions()
-    args = parser.parse()
-    print(args)
-
-    t = Test(args)
+    configs = None
+    with open("configs/test.yaml", "r") as stream:
+        try:
+            configs = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+    
+    print(configs)
+    t = Test(configs)
     t.detect()

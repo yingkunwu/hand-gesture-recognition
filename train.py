@@ -1,56 +1,66 @@
-import torch, os
+import os
+import random
+import yaml
+import numpy as np
 from tqdm import tqdm
+import torch
+import torch.nn as nn
 
 from libs.load import load_data
-from libs.options import TrainOptions
-from model.CPM import ConvolutionalPoseMachine
-from libs.loss import mse_loss, ce_loss
+from model.posenet import PoseResNet
+
+
+def init():
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 class Train:
-    def __init__(self, args):
-        self.args = args
+    def __init__(self, configs):
+        self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = ConvolutionalPoseMachine(self.args.num_masks, self.args.num_heatmaps)
-
+        self.model = PoseResNet(nof_joints=self.configs['num_joints'])
 
     def train(self):
-        train_set, valid_set, train_dataloader, val_dataloader = load_data(self.args.data_folder, self.args.img_size, 
-                                                                        self.args.sigma, self.args.batch_size, "train")
+        init()
+        print("Using device:", self.device)
+
+        train_set, valid_set, train_dataloader, val_dataloader = load_data(
+            self.configs['data_path'], 
+            self.configs['batch_size'], 
+            self.configs['img_size'], 
+            self.configs['num_joints'], 
+            self.configs['sigma'], 
+            "train"
+        )
         print("The number of data in train set: ", train_set.__len__())
         print("The number of data in valid set: ", valid_set.__len__())
 
         self.model = self.model.to(self.device)
+        
+        criterion = nn.MSELoss()
 
         # define loss function and optimizer
-        #optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
-        optimizer = torch.optim.Adam(params=self.model.parameters(), lr=self.args.lr)
+        #optimizer = torch.optim.SGD(self.model.parameters(), lr=self.args.lr)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.configs['learning_rate'])
 
-        for i in range(self.args.epochs):
+        for epoch in range(self.configs['epochs']):
             train_loss, val_loss = 0, 0
             train_acc, val_acc = 0, 0
 
             self.model.train()
-            for i, (images, keypoints, limbmasks, labels) in enumerate(tqdm(train_dataloader)):
+            for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(train_dataloader)):
                 images = images.to(self.device)
-                keypoints = keypoints.to(self.device)
-                limbmasks = limbmasks.to(self.device)
+                heatmaps = heatmaps.to(self.device)
 
-                g6_targ = limbmasks[:, :1, ...]
-                g1_targ = limbmasks[:, 1:, ...]
-                g6_targ = torch.cat([g6_targ] * 3, dim=1)
-                g1_targ = torch.cat([g1_targ] * 3, dim=1)
-                kp_targ = torch.cat([keypoints] * 3, dim=1)  
+                optimizer.zero_grad()
 
-                g6_pred, g1_pred, kp_pred = self.model(images)
+                output = self.model(images)
 
-                g1_loss = ce_loss(g1_pred, g1_targ)
-                g6_loss = ce_loss(g6_pred, g6_targ)
-                kp_loss = mse_loss(kp_pred, kp_targ)
-
-                loss = g1_loss + g6_loss + kp_loss
-
-                #print("g1_loss: {}, g6_loss: {}, kp_loss: {}".format(g1_loss.item(), g6_loss.item(), kp_loss.item()))
+                loss = criterion(output, heatmaps)
 
                 loss.backward()
                 optimizer.step()
@@ -60,14 +70,18 @@ class Train:
                 #train_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
                 
             print("Epoch: {}, train_loss: {}, train_acc: {}, val_loss: {}, val_acc: {}"
-                    .format(i + 1, train_loss, train_acc, val_loss, val_acc))
-            torch.save(self.model.state_dict(), os.path.join("weights", self.args.model_name))
+                    .format(epoch + 1, train_loss, train_acc, val_loss, val_acc))
+            torch.save(self.model.state_dict(), os.path.join("weights", self.configs['model_name']))
 
 
 if __name__ == "__main__":
-    parser = TrainOptions()
-    args = parser.parse()
-    print(args)
-
-    t = Train(args)
+    configs = None
+    with open("configs/train.yaml", "r") as stream:
+        try:
+            configs = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+    
+    print(configs)
+    t = Train(configs)
     t.train()
