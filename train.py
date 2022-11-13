@@ -7,7 +7,9 @@ import torch
 import torch.nn as nn
 
 from libs.load import load_data
+from libs.loss import MultiTasksLoss
 from model.posenet import PoseResNet
+from model.resnet import ResNet
 
 
 def init():
@@ -23,6 +25,7 @@ class Train:
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = PoseResNet(nof_joints=self.configs['num_joints'])
+        #self.model = ResNet()
 
     def train(self):
         init()
@@ -41,10 +44,13 @@ class Train:
 
         self.model = self.model.to(self.device)
         
-        criterion = nn.MSELoss()
+        #criterion = nn.MSELoss()
+        #criterion = nn.CrossEntropyLoss()
+        criterion = MultiTasksLoss()
 
         # define loss function and optimizer
-        #optimizer = torch.optim.SGD(self.model.parameters(), lr=self.args.lr)
+        #optimizer = torch.optim.SGD(self.model.parameters(), lr=self.configs['learning_rate'], 
+        #                            momentum=0.9, weight_decay = 0.0001)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.configs['learning_rate'])
 
         for epoch in range(self.configs['epochs']):
@@ -55,22 +61,45 @@ class Train:
             for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(train_dataloader)):
                 images = images.to(self.device)
                 heatmaps = heatmaps.to(self.device)
+                labels = labels.to(self.device)
 
                 optimizer.zero_grad()
 
-                output = self.model(images)
+                heatmap_pred, label_pred = self.model(images)
+                #label_pred = self.model(images)
 
-                loss = criterion(output, heatmaps)
+                loss = criterion(heatmap_pred, label_pred, heatmaps, labels)
+                #loss = criterion(label_pred, labels)
 
                 loss.backward()
                 optimizer.step()
 
                 train_loss += loss.item()
-                #prediction = torch.argmax(outputs.detach(), dim=1)
-                #train_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
-                
+                prediction = torch.argmax(label_pred.detach(), dim=1)
+                train_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
+
+            self.model.eval()
+            with torch.no_grad():
+                for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(val_dataloader)):
+                    images = images.to(self.device)
+                    heatmaps = heatmaps.to(self.device)
+                    labels = labels.to(self.device)
+
+                    heatmap_pred, label_pred = self.model(images)
+                    #label_pred = self.model(images)
+                    loss = criterion(heatmap_pred, label_pred, heatmaps, labels)
+                    #loss = criterion(label_pred, labels)
+
+                    val_loss += loss.item()
+                    prediction = torch.argmax(label_pred.detach(), dim=1)
+                    val_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
+
             print("Epoch: {}, train_loss: {}, train_acc: {}, val_loss: {}, val_acc: {}"
-                    .format(epoch + 1, train_loss, train_acc, val_loss, val_acc))
+                    .format(
+                        epoch + 1, 
+                        train_loss  / train_dataloader.__len__(), train_acc  / train_dataloader.__len__(), 
+                        val_loss  / val_dataloader.__len__(), val_acc  / val_dataloader.__len__())
+                    )
             torch.save(self.model.state_dict(), os.path.join("weights", self.configs['model_name']))
 
 

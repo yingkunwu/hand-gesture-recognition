@@ -55,6 +55,7 @@ class Test:
         self.load_model()
         self.model.eval()
 
+        test_acc = 0.0
         start_time = time.time()
 
         # --------------------------
@@ -64,66 +65,71 @@ class Test:
             for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(test_dataloader)):
                 images = images.to(self.device)
                 heatmaps = heatmaps.to(self.device)
+                labels = labels.to(self.device)
 
-                output = self.model(images)
+                heatmap_pred, label_pred = self.model(images)
+
+                prediction = torch.argmax(label_pred.detach(), dim=1)
+                test_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
                 
-                images[:, 0] = images[:, 0] * 0.229 + 0.485
-                images[:, 1] = images[:, 1] * 0.224 + 0.456
-                images[:, 2] = images[:, 2] * 0.225 + 0.406
-                images = images * 255.0
+                if self.configs['display_results']:
+                    images[:, 0] = images[:, 0] * 0.229 + 0.485
+                    images[:, 1] = images[:, 1] * 0.224 + 0.456
+                    images[:, 2] = images[:, 2] * 0.225 + 0.406
+                    images = images * 255.0
 
-                landmarks = landmarks * configs['img_size']
+                    landmarks = landmarks * configs['img_size']
 
-                pred_maps = F.interpolate(output, size=(self.configs['img_size'], self.configs['img_size']), 
-                                            mode='bilinear', align_corners=True)
-                targ_maps = F.interpolate(heatmaps, size=(self.configs['img_size'], self.configs['img_size']), 
-                                            mode='bilinear', align_corners=True)
+                    pred_maps = F.interpolate(heatmap_pred, size=(self.configs['img_size'], self.configs['img_size']), 
+                                                mode='bilinear', align_corners=True)
+                    targ_maps = F.interpolate(heatmaps, size=(self.configs['img_size'], self.configs['img_size']), 
+                                                mode='bilinear', align_corners=True)
 
-                for i in range(self.configs['batch_size']):
-                    img = images[i]
-                    img = img.cpu().numpy().transpose(1, 2, 0)
-                    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-                    pred_img = img.copy()
-                    targ_img = img.copy()
+                    for i in range(self.configs['batch_size']):
+                        img = images[i]
+                        img = img.cpu().numpy().transpose(1, 2, 0)
+                        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                        pred_img = img.copy()
+                        targ_img = img.copy()
 
-                    pred_heatmap = pred_maps[i].cpu().numpy().transpose(1, 2, 0)
-                    targ_heatmap = targ_maps[i].cpu().numpy().transpose(1, 2, 0)
+                        pred_heatmap = pred_maps[i].cpu().numpy().transpose(1, 2, 0)
+                        targ_heatmap = targ_maps[i].cpu().numpy().transpose(1, 2, 0)
 
-                    pred_landmark = self.get_keypoints(pred_heatmap)
-                    targ_landmark = landmarks[i].cpu().numpy().astype(np.int32)
+                        pred_landmark = self.get_keypoints(pred_heatmap)
+                        targ_landmark = landmarks[i].cpu().numpy().astype(np.int32)
 
-                    pred_img = draw_bones(pred_img, pred_landmark)
-                    targ_img = draw_bones(targ_img, targ_landmark)
+                        pred_img = draw_bones(pred_img, pred_landmark)
+                        targ_img = draw_bones(targ_img, targ_landmark)
 
-                    pred_img = draw_joints(pred_img, pred_landmark)
-                    targ_img = draw_joints(targ_img, targ_landmark)
+                        pred_img = draw_joints(pred_img, pred_landmark)
+                        targ_img = draw_joints(targ_img, targ_landmark)
 
-                    for i in range(self.configs['num_joints']):
-                        pred = pred_heatmap[:, :, i]
-                        print(np.unique(pred))
-                        pred = cv2.normalize(pred, pred, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
-                                                    dtype=cv2.CV_8U)
-                        pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
+                        for i in range(self.configs['num_joints']):
+                            pred = pred_heatmap[:, :, i]
+                            print(np.unique(pred))
+                            pred = cv2.normalize(pred, pred, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
+                                                        dtype=cv2.CV_8U)
+                            pred = cv2.applyColorMap(pred, cv2.COLORMAP_JET)
 
-                        targ = targ_heatmap[:, :, i]
-                        targ = cv2.normalize(targ, targ, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
-                                                    dtype=cv2.CV_8U)
-                        targ = cv2.applyColorMap(targ, cv2.COLORMAP_JET)
-                    
-                        display1 = pred_img * 0.8 + pred * 0.2
-                        display2 = targ_img * 0.8 + targ * 0.2
+                            targ = targ_heatmap[:, :, i]
+                            targ = cv2.normalize(targ, targ, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, 
+                                                        dtype=cv2.CV_8U)
+                            targ = cv2.applyColorMap(targ, cv2.COLORMAP_JET)
+                        
+                            display1 = pred_img * 0.8 + pred * 0.2
+                            display2 = targ_img * 0.8 + targ * 0.2
 
-                        display = np.concatenate((display1, display2), axis=1).astype(np.uint8)
-                        cv2.imshow("img", display)
-                        key = cv2.waitKey(0)
-                        if key == ord('q'):
-                            print("quit display")
-                            exit(1)
+                            display = np.concatenate((display1, display2), axis=1).astype(np.uint8)
+                            cv2.imshow("img", display)
+                            key = cv2.waitKey(0)
+                            if key == ord('q'):
+                                print("quit display")
+                                exit(1)
 
 
         end_time = time.time()
 
-        print("Testing cost {} sec(s)".format(end_time - start_time))
+        print("Accuracy: {}, Testing cost {} sec(s)".format(test_acc / test_dataloader.__len__(), end_time - start_time))
 
 
 if __name__ == "__main__":
