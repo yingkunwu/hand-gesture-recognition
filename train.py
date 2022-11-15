@@ -8,6 +8,7 @@ import torch.nn as nn
 
 from libs.load import load_data
 from libs.loss import MultiTasksLoss
+from libs.metrics import PCK, get_max_preds, calc_class_accuracy
 from model.posenet import PoseResNet
 from model.resnet import ResNet
 
@@ -24,8 +25,16 @@ class Train:
     def __init__(self, configs):
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = PoseResNet(nof_joints=self.configs['num_joints'])
-        #self.model = ResNet()
+        #self.model = PoseResNet(nof_joints=self.configs['num_joints'])
+        self.model = ResNet(nof_joints=self.configs['num_joints'])
+        self.model = self.model.to(self.device)
+
+    def load_model(self):
+        weight_path = os.path.join("weights", self.configs['model_name'])
+        if os.path.exists(weight_path):
+            self.model.load_state_dict(torch.load(weight_path, map_location=self.device))
+        else:
+            assert False, "Model is not exist in {}".format(weight_path)
 
     def train(self):
         init()
@@ -41,8 +50,7 @@ class Train:
         )
         print("The number of data in train set: ", train_set.__len__())
         print("The number of data in valid set: ", valid_set.__len__())
-
-        self.model = self.model.to(self.device)
+        #self.load_model()
         
         #criterion = nn.MSELoss()
         #criterion = nn.CrossEntropyLoss()
@@ -55,7 +63,8 @@ class Train:
 
         for epoch in range(self.configs['epochs']):
             train_loss, val_loss = 0, 0
-            train_acc, val_acc = 0, 0
+            train_class_acc, val_class_acc = 0, 0
+            train_PCK_acc, val_PCK_acc = 0, 0
 
             self.model.train()
             for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(train_dataloader)):
@@ -75,8 +84,18 @@ class Train:
                 optimizer.step()
 
                 train_loss += loss.item()
-                prediction = torch.argmax(label_pred.detach(), dim=1)
-                train_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
+
+                if label_pred is not None:
+                    train_class_acc += calc_class_accuracy(label_pred.detach(), labels)
+
+                if heatmap_pred is not None:
+                    landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
+
+                    landmarks = (landmarks * configs['img_size']).numpy()
+                    landmarks_pred = landmarks_pred * configs['img_size']
+
+                    train_PCK_acc += PCK(landmarks_pred, landmarks, 
+                                    self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
 
             self.model.eval()
             with torch.no_grad():
@@ -91,15 +110,35 @@ class Train:
                     #loss = criterion(label_pred, labels)
 
                     val_loss += loss.item()
-                    prediction = torch.argmax(label_pred.detach(), dim=1)
-                    val_acc += torch.mean(torch.eq(prediction, labels).type(torch.float32)).item()
 
-            print("Epoch: {}, train_loss: {}, train_acc: {}, val_loss: {}, val_acc: {}"
-                    .format(
-                        epoch + 1, 
-                        train_loss  / train_dataloader.__len__(), train_acc  / train_dataloader.__len__(), 
-                        val_loss  / val_dataloader.__len__(), val_acc  / val_dataloader.__len__())
+                    if label_pred is not None:
+                        val_class_acc += calc_class_accuracy(label_pred.detach(), labels)
+
+                    if heatmap_pred is not None:
+                        landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
+
+                        landmarks = (landmarks * configs['img_size']).numpy()
+                        landmarks_pred = landmarks_pred * configs['img_size']
+
+                        val_PCK_acc += PCK(landmarks_pred, landmarks, 
+                                        self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
+
+            # ====================
+            # ======  log  =======
+            # ====================
+            print("Epoch: ", epoch + 1)
+            print("train_loss: {}, train_class_acc: {}, train_PCK_acc: {}"
+                    .format(train_loss  / train_dataloader.__len__(), 
+                            train_class_acc  / train_dataloader.__len__(),
+                            train_PCK_acc  / train_dataloader.__len__(),
                     )
+            )
+            print("val_loss: {}, val_class_acc: {}, val_PCK_acc: {}"
+                    .format(val_loss  / val_dataloader.__len__(), 
+                            val_class_acc  / val_dataloader.__len__(),
+                            val_PCK_acc  / val_dataloader.__len__(),
+                    )
+            )
             torch.save(self.model.state_dict(), os.path.join("weights", self.configs['model_name']))
 
 
