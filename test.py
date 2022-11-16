@@ -11,17 +11,19 @@ from libs.load import load_data
 from libs.draw import draw_bones, draw_joints
 from libs.metrics import PCK, get_max_preds, calc_class_accuracy
 from model.posenet import PoseResNet
+from model.resnet import ResNet
 
 
 class Test:
     def __init__(self, configs):
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = PoseResNet(nof_joints=self.configs['num_joints'])
+        #self.model = PoseResNet(nof_joints=self.configs['num_joints'])
+        self.model = ResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
         self.model = self.model.to(self.device)
 
     def load_model(self):
-        weight_path = os.path.join("weights", self.configs['model_name'])
+        weight_path = os.path.join("weights", self.configs['model_name'] + ".pth")
         if os.path.exists(weight_path):
             self.model.load_state_dict(torch.load(weight_path, map_location=self.device))
         else:
@@ -32,6 +34,7 @@ class Test:
 
         test_set, test_dataloader= load_data(
             self.configs['data_path'], 
+            self.configs['classes_dict'],
             self.configs['batch_size'], 
             self.configs['img_size'], 
             self.configs['num_joints'], 
@@ -44,27 +47,30 @@ class Test:
         self.model.eval()
 
         class_acc, PCK_acc = 0.0, 0.0
-        start_time = time.time()
+
+        label_dict = test_set.classes
+        label_dict = {v: k for k, v in label_dict.items()}
 
         # --------------------------
         # Testing Stage
         # --------------------------
+        start_time = time.time()
         with torch.no_grad():
             for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(test_dataloader)):
                 images = images.to(self.device)
                 heatmaps = heatmaps.to(self.device)
                 labels = labels.to(self.device)
 
-                heatmap_pred, label_pred = self.model(images)
+                heatmap_pred, label_pred = self.model(images, heatmaps)
 
-                landmarks_pred, maxvals = get_max_preds(heatmap_pred.detach().cpu().numpy())
+                #landmarks_pred, maxvals = get_max_preds(heatmap_pred.detach().cpu().numpy())
 
-                landmarks = (landmarks * configs['img_size']).numpy()
-                landmarks_pred = landmarks_pred * configs['img_size']
+                #landmarks = (landmarks * configs['img_size']).numpy()
+                #landmarks_pred = landmarks_pred * configs['img_size']
 
-                class_acc += calc_class_accuracy(label_pred.detach(), labels)
-                PCK_acc += PCK(landmarks_pred, landmarks, 
-                                self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
+                class_acc += calc_class_accuracy(label_pred, labels)
+                #PCK_acc += PCK(landmarks_pred, landmarks, 
+                #                self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
                 
                 if self.configs['display_results']:
                     images[:, 0] = images[:, 0] * 0.229 + 0.485
@@ -99,6 +105,9 @@ class Test:
                         pred_img = draw_joints(pred_img, pred_landmark)
                         targ_img = draw_joints(targ_img, targ_landmark)
 
+                        pred_label = torch.argmax(label_pred[i]).cpu().item()
+                        targ_label = labels[i].cpu().item()
+
                         for j in range(self.configs['num_joints']):
                             print(maxvals[i][j])
 
@@ -115,6 +124,11 @@ class Test:
                             display1 = pred_img * 0.8 + pred * 0.2
                             display2 = targ_img * 0.8 + targ * 0.2
 
+                            display1 = cv2.putText(display1, "Prediction: {}".format(label_dict[pred_label]), 
+                                                (0, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                            display2 = cv2.putText(display2, "Ground Truth: {}".format(label_dict[targ_label]), 
+                                                (0, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
                             display = np.concatenate((display1, display2), axis=1).astype(np.uint8)
                             cv2.imshow("img", display)
                             key = cv2.waitKey(0)
@@ -124,10 +138,10 @@ class Test:
 
         end_time = time.time()
 
-        print("Accuracy of classification: {}, Accuracy of pose estimation: {}, Testing cost {} sec(s)"
+        print("Accuracy of classification: {}, Accuracy of pose estimation: {}, Testing cost {} sec(s) per image"
                 .format(class_acc / test_dataloader.__len__(), 
                         PCK_acc / test_dataloader.__len__(), 
-                        end_time - start_time))
+                        (end_time - start_time) / test_set.__len__()))
 
 
 if __name__ == "__main__":
