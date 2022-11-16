@@ -1,13 +1,27 @@
 # model
 num_joints: 21
-model_name: "posenet.model"
+num_classes: 10
+model_name: "poseresnet_with_ground_truth"
 
 # dataset
 data_path: "hagrid/hagrid_train"
+
+classes_dict:
+  call: 0
+  dislike: 1
+  fist: 2
+  like: 3
+  mute: 4
+  ok: 5
+  one: 6
+  palm: 7
+  peace: 8
+  stop: 9
+
 batch_size: 32
 img_size: 256
 sigma: 3
 
 # hyperparameters
-epochs: 15
+epochs: 20
 learning_rate: 0.001

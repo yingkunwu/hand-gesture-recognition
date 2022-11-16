@@ -9,17 +9,17 @@ from torch.utils.data import Dataset, DataLoader, random_split
 
 
 class HandDataset(Dataset):
-    def __init__(self, data_dir, img_size, num_joints, sigma):
+    def __init__(self, data_dir, classes_dict, img_size, num_joints, sigma):
         super().__init__()
-        self.classes = {"call" : 0, "dislike" : 1, "fist" : 2, "like" : 3, "mute" : 4, 
-                            "ok" : 5, "one" : 6, "palm" : 7, "peace" : 8, "stop" : 9}
-
+        self.classes = classes_dict
         json_file_path = glob.glob(os.path.join(data_dir, "**/*.json"))
         metadata = self.read_data(json_file_path)
+
         self.img_paths = metadata['img_paths']
         self.bboxes = metadata['bboxes']
         self.landmarks = metadata['landmarks']
         self.labels = metadata['labels']
+        
         self.img_size = img_size
         self.map_size = self.img_size // 4
         self.sigma = sigma
@@ -58,16 +58,21 @@ class HandDataset(Dataset):
         x2, y2 = x1 + w, y1 + h
 
         size = max(h, w)
-        
-        new_img = np.zeros((size, size, 3), dtype=np.uint8)
-        
-        new_img[:h, :w] = img[y1:y2, x1:x2]
+        new_img = None
+        resize_bbox = True
 
-        bbox[0] = (bbox[0] * width - x1) / size
-        bbox[1] = (bbox[1] * height - y1) / size
+        if resize_bbox:
+            new_img = cv2.resize(img[y1:y2, x1:x2], (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
+        else:
+            new_img = np.zeros((size, size, 3), dtype=np.uint8)
+            new_img[:h, :w] = img[y1:y2, x1:x2]
+            w, h = size, size
 
-        landmark[:, 0] = (landmark[:, 0] * width - x1) / size
-        landmark[:, 1] = (landmark[:, 1] * height - y1) / size
+        bbox[0] = (bbox[0] * width - x1) / w
+        bbox[1] = (bbox[1] * height - y1) / h
+
+        landmark[:, 0] = (landmark[:, 0] * width - x1) / w
+        landmark[:, 1] = (landmark[:, 1] * height - y1) / h
 
         return new_img, bbox, landmark
 
@@ -140,9 +145,9 @@ class HandDataset(Dataset):
         return metadata
 
 
-def load_data(data_path, batch_size, img_size, num_joints, sigma, action):
+def load_data(data_path, classes_dict, batch_size, img_size, num_joints, sigma, action):
     if action == "train":
-        train_set = HandDataset(data_path, img_size, num_joints, sigma)
+        train_set = HandDataset(data_path, classes_dict, img_size, num_joints, sigma)
         train_set_size = int(len(train_set) * 0.8)
         valid_set_size = len(train_set) - train_set_size
         train_set, valid_set = random_split(train_set, [train_set_size, valid_set_size])
@@ -152,8 +157,8 @@ def load_data(data_path, batch_size, img_size, num_joints, sigma, action):
         return train_set, valid_set, train_dataloader, val_dataloader
 
     elif action == "test":
-        test_set = HandDataset(data_path, img_size, num_joints, sigma)
-        test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=4)
+        test_set = HandDataset(data_path, classes_dict, img_size, num_joints, sigma)
+        test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=4)
         return test_set, test_dataloader
 
     else:
