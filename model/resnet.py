@@ -2,6 +2,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from model.cbam import cbam
+
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -98,12 +100,6 @@ class ResNet(nn.Module):
             nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         )
 
-        #self.cnn2 = nn.Sequential(
-        #    nn.Conv2d(789, 2048, kernel_size=5, stride=1, padding=2, bias=False),
-        #    nn.BatchNorm2d(2048, momentum=bn_momentum),
-        #    nn.ReLU(inplace=True)
-        #)
-
         self.layer1 = self._make_layer(block, [64, 64], [256, 64], layers[0], stride=1, bn_momentum=bn_momentum)
         self.layer2 = self._make_layer(block, [256, 128], [512, 128], layers[1], stride=2, bn_momentum=bn_momentum)
         self.layer3 = self._make_layer(block, [512, 256], [1024, 256], layers[2], stride=2, bn_momentum=bn_momentum)
@@ -113,14 +109,13 @@ class ResNet(nn.Module):
         self.deconv2 = self._make_deconv_layer(256, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
         self.deconv3 = self._make_deconv_layer(256, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
 
-        #self.bridge1 = BasicBlock(256, 256, kernel_size=5, stride=1, padding=2)
-        #self.bridge2 = BasicBlock(256, 256, kernel_size=5, stride=1, padding=2)
-        #self.bridge3 = BasicBlock(256, 256, kernel_size=5, stride=1, padding=2)
-        #self.bridge4 = BasicBlock(nof_joints, nof_joints, kernel_size=5, stride=1, padding=2)
-
         self.down1 = BasicBlock(nof_joints, 128, kernel_size=5, stride=2, padding=2)
         self.down2 = BasicBlock(128, 128, kernel_size=5, stride=2, padding=2)
         self.down3 = BasicBlock(128, 128, kernel_size=5, stride=2, padding=2)
+
+        self.attention1 = cbam(128)
+        self.attention2 = cbam(128)
+        self.attention3 = cbam(128)
 
         self.heatmap_layer = nn.Conv2d(256, nof_joints, kernel_size=1, stride=1, padding=0)
 
@@ -172,30 +167,17 @@ class ResNet(nn.Module):
 
         #heatmap = self.heatmap_layer(x3)
 
-        #x1_ = F.interpolate(x1, size=(64, 64), mode='bilinear', align_corners=True)
-        #x2_ = F.interpolate(x2, size=(64, 64), mode='bilinear', align_corners=True)
-        #x3_ = F.interpolate(x3, size=(64, 64), mode='bilinear', align_corners=True)
-
-        #x1_ = self.bridge1(x1)
-        #x1_ = self.avgpool(x1_)
-
-        #x2_ = self.bridge2(x2)
-        #x2_ = self.avgpool(x2_)
-
-        #x3_ = self.bridge3(x3)
-        #x3_ = self.avgpool(x3_)
-
-        #heatmap_ = self.bridge4(heatmap)
         heatmap_ = self.down1(ground_truth_heatmap)
+        heatmap_ = self.attention1(heatmap_)
         heatmap_ = self.down2(heatmap_)
+        heatmap_ = self.attention2(heatmap_)
         heatmap_ = self.down3(heatmap_)
+        heatmap_ = self.attention3(heatmap_)
         heatmap_ = self.avgpool(heatmap_)
 
         x = self.avgpool(x)
         x_ = torch.cat((x, heatmap_), dim=1)
 
-        #x_ = self.cnn2(x3)
-        #x_ = self.avgpool(x_)
         x_ = x_.view(x_.size(0), -1)
         label = self.classification_layer(x_)
 

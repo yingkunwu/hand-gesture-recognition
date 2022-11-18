@@ -61,10 +61,12 @@ class cbam(nn.Module):
         self.sa = spatial_attention_module()
 
     def forward(self, x):
-        x = self.conv(x)
-        x = self.ca(x)
-        x = self.sa(x)
-        return x
+        residual = x
+        out = self.conv(x)
+        out = self.ca(out)
+        out = self.sa(out)
+        out += residual
+        return out
 
 
 if __name__ == "__main__":
