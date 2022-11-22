@@ -7,23 +7,23 @@ class HandPreprocess:
         self.img_size = img_size
         self.num_joints = num_joints
 
-        # resize FOAs to avoid black regions
+        # crop FOAs based on the region of bbox for pose estimation
         self.crop_FOA = preprocess['crop_FOA']
+        # resize FOAs to avoid black regions
         self.resize_FOA = preprocess['resize_FOA']
+        # augment images by rotate images with random angles between [-30, 30)
         self.rotate = preprocess['rotate']
+        # augment images by flipping images horizontally
         self.horizontal_flip = preprocess['horizontal_flip']
+        # augment images by modifying hsv channels of images
         self.hsv = preprocess['hsv']
 
     def apply(self, img, bbox, landmark):
-        # augment images by flipping images horizontally
         if self.horizontal_flip and np.random.rand() > 0.5:
             img, bbox, landmark = self.horizontal_flip_(img, bbox, landmark)
-        
-        # augment images by modifying hsv channels of images
         if self.hsv and np.random.rand() > 0.5:
             img = self.hsv_(img)
 
-        # crop the FOA based on the region of bbox
         if self.crop_FOA:
             img, landmark = self.crop_image(img, bbox, landmark)
         else:
