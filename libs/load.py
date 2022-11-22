@@ -41,7 +41,7 @@ class HandDataset(Dataset):
         landmark = np.array(self.landmarks[idx])
         label = np.array(self.labels[idx])
 
-        # crop objects based on bbox
+        # do data preprocess
         img, landmark = self.preprocess.apply(img, bbox, landmark)
 
         # generate groundtruth heatmap
