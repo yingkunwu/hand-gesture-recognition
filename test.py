@@ -10,16 +10,14 @@ import torch.nn.functional as F
 from libs.load import load_data
 from libs.draw import draw_bones, draw_joints
 from libs.metrics import PCK, get_max_preds, calc_class_accuracy
-from model.posenet import PoseResNet
-from model.resnet import ResNet
+from model.poseresnet import PoseResNet
 
 
 class Test:
     def __init__(self, configs):
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        #self.model = PoseResNet(nof_joints=self.configs['num_joints'])
-        self.model = ResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
+        self.model = PoseResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
         self.model = self.model.to(self.device)
 
     def load_model(self):

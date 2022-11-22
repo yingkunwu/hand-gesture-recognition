@@ -2,46 +2,6 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from model.cbam import cbam
-
-
-class BasicBlock(nn.Module):
-    expansion = 1
-
-    def __init__(self, inplanes, planes, kernel_size, padding, stride=1, downsample=None, bn_momentum=0.1):
-        super(BasicBlock, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes, momentum=bn_momentum)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=kernel_size, stride=1, padding=padding, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes, momentum=bn_momentum)
-
-        downsample = nn.Sequential(
-            nn.Conv2d(inplanes, planes, kernel_size=1, stride=stride, bias=False),
-            nn.BatchNorm2d(planes, momentum=bn_momentum),
-        )
-
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -82,9 +42,9 @@ class Bottleneck(nn.Module):
 
 
 # derived from https://github.com/leoxiaobin/deep-high-resolution-net.pytorch
-class ResNet(nn.Module):
+class PoseResNet(nn.Module):
     def __init__(self, resnet_size=50, nof_joints=21, nof_classes=10, bn_momentum=0.1):
-        super(ResNet, self).__init__()
+        super(PoseResNet, self).__init__()
         resnet_spec = {
             50: (Bottleneck, [3, 4, 6, 3]),
             101: (Bottleneck, [3, 4, 23, 3]),
@@ -106,26 +66,24 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, [1024, 512], [2048, 512], layers[3], stride=2, bn_momentum=bn_momentum)
 
         self.deconv1 = self._make_deconv_layer(2048, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
-        self.deconv2 = self._make_deconv_layer(256, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
-        self.deconv3 = self._make_deconv_layer(256, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
+        self.deconv2 = self._make_deconv_layer(512, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
+        self.deconv3 = self._make_deconv_layer(512, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
 
-        self.down1 = BasicBlock(nof_joints, 128, kernel_size=5, stride=2, padding=2)
-        self.down2 = BasicBlock(128, 128, kernel_size=5, stride=2, padding=2)
-        self.down3 = BasicBlock(128, 128, kernel_size=5, stride=2, padding=2)
+        self.bridge1 =  self._make_bridge(256, 256, bn_momentum=bn_momentum)
+        self.bridge2 =  self._make_bridge(256, 256, bn_momentum=bn_momentum)
+        self.bridge3 =  self._make_bridge(256, 256, bn_momentum=bn_momentum)
 
-        self.attention1 = cbam(128)
-        self.attention2 = cbam(128)
-        self.attention3 = cbam(128)
+        self.heatmap_layer = nn.Conv2d(512, nof_joints, kernel_size=1, stride=1, padding=0)
+        self.relu = nn.ReLU(inplace=True)
 
-        self.heatmap_layer = nn.Conv2d(256, nof_joints, kernel_size=1, stride=1, padding=0)
-
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
         self.classification_layer = nn.Sequential(
-            nn.Linear(2176, 2176),
+            nn.Linear(3840, 3840),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(2176, nof_classes)
+            nn.Linear(3840, nof_classes)
         )
 
     def _make_layer(self, block, conv_planes, identity_planes, blocks, stride, bn_momentum):
@@ -153,7 +111,14 @@ class ResNet(nn.Module):
         layers.append(nn.ReLU(inplace=True))
         return nn.Sequential(*layers)
 
-    def forward(self, x, ground_truth_heatmap):
+    def _make_bridge(self, in_channels, out_channels, bn_momentum):
+        layers =[]
+        layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0))
+        layers.append(nn.BatchNorm2d(out_channels, momentum=bn_momentum))
+        layers.append(nn.ReLU(inplace=True))
+        return nn.Sequential(*layers)
+
+    def forward(self, x, ground_truth_heatmap=None):
         x = self.cnn(x)
 
         x = self.layer1(x)
@@ -161,31 +126,48 @@ class ResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
 
-        #x1 = self.deconv1(x)
-        #x2 = self.deconv2(x1)
-        #x3 = self.deconv3(x2)
+        features = x
 
-        #heatmap = self.heatmap_layer(x3)
+        h = self.deconv1(x)
+        h1 = self.bridge1(h)
+        h = torch.cat((h, h1), dim=1)
+        h = self.deconv2(h)
+        h2 = self.bridge2(h)
+        h = torch.cat((h, h2), dim=1)
+        h = self.deconv3(h)
+        h3 = self.bridge3(h)
+        h = torch.cat((h, h3), dim=1)
 
-        heatmap_ = self.down1(ground_truth_heatmap)
-        heatmap_ = self.attention1(heatmap_)
-        heatmap_ = self.down2(heatmap_)
-        heatmap_ = self.attention2(heatmap_)
-        heatmap_ = self.down3(heatmap_)
-        heatmap_ = self.attention3(heatmap_)
-        heatmap_ = self.avgpool(heatmap_)
+        h = self.heatmap_layer(h)
+        heatmap = h
 
-        x = self.avgpool(x)
-        x_ = torch.cat((x, heatmap_), dim=1)
+        # prepare features for classification
+        features = self.avgpool(features)
+        features = features.view(features.size(0), -1)
 
-        x_ = x_.view(x_.size(0), -1)
+        h1 = self.avgpool(h1)
+        h1 = h1.view(h1.size(0), -1)
+
+        h2 = self.avgpool(h2)
+        h2 = h2.view(h2.size(0), -1)
+
+        h3 = self.avgpool(h3)
+        h3 = h3.view(h3.size(0), -1)
+
+        h_ = self.relu(h)
+        h_ = self.maxpool(h_)
+        h_ = torch.mean(h_, dim=1, keepdim=True)
+        h_ = h_.view(h_.size(0), -1)
+        h_ = h_.detach()
+
+        x_ = torch.cat((features, h1, h2, h3, h_), dim=1)
         label = self.classification_layer(x_)
 
-        return None, label
+        return heatmap, label
 
 if __name__ == "__main__":
     x = torch.randn((8, 3, 256, 256))
-    module = ResNet()
+    module = PoseResNet()
     y1, y2 = module(x)
     print(y1.shape, y2.shape)
 
