@@ -55,6 +55,7 @@ class Train:
             self.configs['img_size'], 
             self.configs['num_joints'], 
             self.configs['sigma'], 
+            self.configs['preprocess'], 
             "train"
         )
         print("The number of data in train set: ", train_set.__len__())

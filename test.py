@@ -38,7 +38,8 @@ class Test:
             self.configs['batch_size'], 
             self.configs['img_size'], 
             self.configs['num_joints'], 
-            self.configs['sigma'], 
+            self.configs['sigma'],
+            self.configs['preprocess'], 
             "test"
         )
         print("The number of data in test set: ", test_set.__len__())
@@ -63,14 +64,14 @@ class Test:
 
                 heatmap_pred, label_pred = self.model(images, heatmaps)
 
-                #landmarks_pred, maxvals = get_max_preds(heatmap_pred.detach().cpu().numpy())
+                landmarks_pred, maxvals = get_max_preds(heatmap_pred.cpu().numpy())
 
-                #landmarks = (landmarks * configs['img_size']).numpy()
-                #landmarks_pred = landmarks_pred * configs['img_size']
+                landmarks = (landmarks * configs['img_size']).numpy()
+                landmarks_pred = landmarks_pred * configs['img_size']
 
                 class_acc += calc_class_accuracy(label_pred, labels)
-                #PCK_acc += PCK(landmarks_pred, landmarks, 
-                #                self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
+                PCK_acc += PCK(landmarks_pred, landmarks, 
+                                self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
                 
                 if self.configs['display_results']:
                     images[:, 0] = images[:, 0] * 0.229 + 0.485
