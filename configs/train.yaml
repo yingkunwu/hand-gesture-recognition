@@ -1,10 +1,10 @@
 # model
 num_joints: 21
-num_classes: 10
-model_name: "poseresnet_with_ground_truth"
+num_classes: 12
+model_name: "posenet_large"
 
 # dataset
-data_path: "hagrid/hagrid_train"
+data_path: "hagrid/hagrid_train2"
 
 classes_dict:
   call: 0
@@ -16,11 +16,19 @@ classes_dict:
   one: 6
   palm: 7
   peace: 8
-  stop: 9
+  peace_inverted: 9
+  stop: 10
+  stop_inverted: 11
 
 batch_size: 32
 img_size: 256
 sigma: 3
+
+# data preprocess and augmentation
+preprocess:
+  resize_FOA: True
+  rotate: False
+  hsv: False
 
 # hyperparameters
 epochs: 20

@@ -10,23 +10,25 @@ from libs.draw import draw_bones, draw_joints
 
 if __name__ == "__main__":
     configs = None
-    with open("configs/train.yaml", "r") as stream:
+    with open("configs/test.yaml", "r") as stream:
         try:
             configs = yaml.safe_load(stream)
         except yaml.YAMLError as exc:
             print(exc)
 
-    train_set, valid_set, train_dataloader, val_dataloader = load_data(
+    test_set, test_dataloader = load_data(
         configs['data_path'], 
+        configs['classes_dict'],
         configs['batch_size'], 
         configs['img_size'], 
         configs['num_joints'], 
         configs['sigma'], 
-        "train"
+        configs['preprocess'], 
+        "test"
     )
 
-    print("length of train set: ", train_set.__len__())
-    for _, (images, heatmaps, labels, landmarks) in enumerate(tqdm(train_dataloader)):
+    print("length of test set: ", test_set.__len__())
+    for _, (images, heatmaps, labels, landmarks) in enumerate(tqdm(test_dataloader)):
         images[:, 0] = images[:, 0] * 0.229 + 0.485
         images[:, 1] = images[:, 1] * 0.224 + 0.456
         images[:, 2] = images[:, 2] * 0.225 + 0.406

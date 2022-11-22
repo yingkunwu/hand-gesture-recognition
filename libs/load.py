@@ -7,9 +7,11 @@ import numpy as np
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader, random_split
 
+from libs.preprocess import HandPreprocess
+
 
 class HandDataset(Dataset):
-    def __init__(self, data_dir, classes_dict, img_size, num_joints, sigma):
+    def __init__(self, data_dir, classes_dict, img_size, num_joints, sigma, preprocess):
         super().__init__()
         self.classes = classes_dict
         json_file_path = glob.glob(os.path.join(data_dir, "**/*.json"))
@@ -26,6 +28,8 @@ class HandDataset(Dataset):
 
         self.num_joints = num_joints
 
+        self.preprocess = HandPreprocess(img_size, num_joints, preprocess)
+
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -38,7 +42,7 @@ class HandDataset(Dataset):
         label = np.array(self.labels[idx])
 
         # crop objects based on bbox
-        img, bbox, landmark = self.crop_image(img, bbox, landmark)
+        img, landmark = self.preprocess.apply(img, bbox, landmark)
 
         # generate groundtruth heatmap
         heatmaps = self.gen_heatmap(landmark)
@@ -51,30 +55,6 @@ class HandDataset(Dataset):
             
     def __len__(self):
         return len(self.img_paths)
-
-    def crop_image(self, img, bbox, landmark):
-        height, width, _ = img.shape
-        x1, y1, w, h = int(bbox[0] * width), int(bbox[1] * height), int(bbox[2] * width), int(bbox[3] * height)
-        x2, y2 = x1 + w, y1 + h
-
-        size = max(h, w)
-        new_img = None
-        resize_bbox = True
-
-        if resize_bbox:
-            new_img = cv2.resize(img[y1:y2, x1:x2], (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
-        else:
-            new_img = np.zeros((size, size, 3), dtype=np.uint8)
-            new_img[:h, :w] = img[y1:y2, x1:x2]
-            w, h = size, size
-
-        bbox[0] = (bbox[0] * width - x1) / w
-        bbox[1] = (bbox[1] * height - y1) / h
-
-        landmark[:, 0] = (landmark[:, 0] * width - x1) / w
-        landmark[:, 1] = (landmark[:, 1] * height - y1) / h
-
-        return new_img, bbox, landmark
 
     def gen_heatmap(self, landmark):
         target = np.zeros((self.num_joints, self.map_size, self.map_size), dtype=np.float32)
@@ -145,9 +125,9 @@ class HandDataset(Dataset):
         return metadata
 
 
-def load_data(data_path, classes_dict, batch_size, img_size, num_joints, sigma, action):
+def load_data(data_path, classes_dict, batch_size, img_size, num_joints, sigma, preprocess, action):
     if action == "train":
-        train_set = HandDataset(data_path, classes_dict, img_size, num_joints, sigma)
+        train_set = HandDataset(data_path, classes_dict, img_size, num_joints, sigma, preprocess)
         train_set_size = int(len(train_set) * 0.8)
         valid_set_size = len(train_set) - train_set_size
         train_set, valid_set = random_split(train_set, [train_set_size, valid_set_size])
@@ -157,8 +137,8 @@ def load_data(data_path, classes_dict, batch_size, img_size, num_joints, sigma, 
         return train_set, valid_set, train_dataloader, val_dataloader
 
     elif action == "test":
-        test_set = HandDataset(data_path, classes_dict, img_size, num_joints, sigma)
-        test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=4)
+        test_set = HandDataset(data_path, classes_dict, img_size, num_joints, sigma, preprocess)
+        test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=4)
         return test_set, test_dataloader
 
     else:
