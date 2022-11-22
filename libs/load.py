@@ -41,15 +41,15 @@ class HandDataset(Dataset):
         landmark = np.array(self.landmarks[idx])
         label = np.array(self.labels[idx])
 
-        # do data preprocess
+        # do image preprocessing
         img, landmark = self.preprocess.apply(img, bbox, landmark)
+
+        # convert image to RGB channels before converting to tensor type
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = self.transform(img)
 
         # generate groundtruth heatmap
         heatmaps = self.gen_heatmap(landmark)
-        
-        img = cv2.resize(img, (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = self.transform(img)
 
         return img, heatmaps, label, landmark
             

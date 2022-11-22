@@ -26,8 +26,10 @@ sigma: 3
 
 # data preprocess and augmentation
 preprocess:
+  crop_FOA: True
   resize_FOA: True
   rotate: False
+  horizontal_flip: False
   hsv: False
 
 # hyperparameters

@@ -8,17 +8,26 @@ class HandPreprocess:
         self.num_joints = num_joints
 
         # resize FOAs to avoid black regions
+        self.crop_FOA = preprocess['crop_FOA']
         self.resize_FOA = preprocess['resize_FOA']
         self.rotate = preprocess['rotate']
+        self.horizontal_flip = preprocess['horizontal_flip']
         self.hsv = preprocess['hsv']
 
     def apply(self, img, bbox, landmark):
-        # crop the FOA based on the region of bbox
-        img, landmark = self.crop_image(img, bbox, landmark)
-
+        # augment images by flipping images horizontally
+        if self.horizontal_flip and np.random.rand() > 0.5:
+            img, bbox, landmark = self.horizontal_flip_(img, bbox, landmark)
+        
         # augment images by modifying hsv channels of images
         if self.hsv and np.random.rand() > 0.5:
             img = self.hsv_(img)
+
+        # crop the FOA based on the region of bbox
+        if self.crop_FOA:
+            img, landmark = self.crop_image(img, bbox, landmark)
+        else:
+            img = cv2.resize(img, (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
 
         return img, landmark
 
@@ -71,6 +80,12 @@ class HandPreprocess:
         landmark[:, 1] = (landmark[:, 1] - y1) / h
 
         return new_img, landmark
+
+    def horizontal_flip_(self, img, bbox, landmark):
+        img = np.flip(img, axis=1)
+        bbox[0] = 1 - bbox[0] - bbox[2]
+        landmark[:, 0] = 1 - landmark[:, 0]
+        return img, bbox, landmark
 
     def hsv_(self, img, hgain=0.015, sgain=0.7, vgain=0.4):
         # HSV color-space augmentation
