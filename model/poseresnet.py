@@ -69,14 +69,18 @@ class PoseResNet(nn.Module):
         self.deconv2 = self._make_deconv_layer(512, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
         self.deconv3 = self._make_deconv_layer(512, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
 
-        self.bridge1 =  self._make_bridge(256, 256, bn_momentum=bn_momentum)
-        self.bridge2 =  self._make_bridge(256, 256, bn_momentum=bn_momentum)
-        self.bridge3 =  self._make_bridge(256, 256, bn_momentum=bn_momentum)
+        self.bridge1 =  nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
+        self.bridge2 =  nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
+        self.bridge3 =  nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
 
         self.heatmap_layer = nn.Conv2d(512, nof_joints, kernel_size=1, stride=1, padding=0)
-        self.relu = nn.ReLU(inplace=True)
 
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.head = nn.Sequential(
+            nn.Conv2d(nof_joints, nof_joints, kernel_size=1, stride=1, padding=0),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        )
+
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
         self.classification_layer = nn.Sequential(
@@ -111,13 +115,6 @@ class PoseResNet(nn.Module):
         layers.append(nn.ReLU(inplace=True))
         return nn.Sequential(*layers)
 
-    def _make_bridge(self, in_channels, out_channels, bn_momentum):
-        layers =[]
-        layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0))
-        layers.append(nn.BatchNorm2d(out_channels, momentum=bn_momentum))
-        layers.append(nn.ReLU(inplace=True))
-        return nn.Sequential(*layers)
-
     def forward(self, x, ground_truth_heatmap=None):
         x = self.cnn(x)
 
@@ -145,20 +142,18 @@ class PoseResNet(nn.Module):
         features = self.avgpool(features)
         features = features.view(features.size(0), -1)
 
-        h1 = self.avgpool(h1)
+        h1 = self.avgpool(F.relu(h1))
         h1 = h1.view(h1.size(0), -1)
 
-        h2 = self.avgpool(h2)
+        h2 = self.avgpool(F.relu(h2))
         h2 = h2.view(h2.size(0), -1)
 
-        h3 = self.avgpool(h3)
+        h3 = self.avgpool(F.relu(h3))
         h3 = h3.view(h3.size(0), -1)
 
-        h_ = self.relu(h)
-        h_ = self.maxpool(h_)
+        h_ = self.head(h)
         h_ = torch.mean(h_, dim=1, keepdim=True)
         h_ = h_.view(h_.size(0), -1)
-        h_ = h_.detach()
 
         x_ = torch.cat((features, h1, h2, h3, h_), dim=1)
         label = self.classification_layer(x_)
@@ -170,4 +165,3 @@ if __name__ == "__main__":
     module = PoseResNet()
     y1, y2 = module(x)
     print(y1.shape, y2.shape)
-
