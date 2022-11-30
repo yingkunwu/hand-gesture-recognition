@@ -73,11 +73,10 @@ class Train:
                 images = images.to(self.device)
                 heatmaps = heatmaps.to(self.device)
                 labels = labels.to(self.device)
-                landmarks = landmarks.to(self.device)
 
                 optimizer.zero_grad()
 
-                heatmap_pred, label_pred = self.model(images, landmarks)
+                heatmap_pred, label_pred = self.model(images)
 
                 loss = criterion(heatmap_pred, label_pred, heatmaps, labels)
 
@@ -107,9 +106,8 @@ class Train:
                     images = images.to(self.device)
                     heatmaps = heatmaps.to(self.device)
                     labels = labels.to(self.device)
-                    landmarks = landmarks.to(self.device)
 
-                    heatmap_pred, label_pred = self.model(images, landmarks)
+                    heatmap_pred, label_pred = self.model(images)
 
                     loss = criterion(heatmap_pred, label_pred, heatmaps, labels)
 
