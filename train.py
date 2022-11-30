@@ -35,13 +35,6 @@ class Train:
         if not os.path.exists("logs/"):
             os.mkdir("logs/")
 
-    def load_model(self):
-        weight_path = os.path.join("weights", self.configs['model_name'])
-        if os.path.exists(weight_path):
-            self.model.load_state_dict(torch.load(weight_path, map_location=self.device))
-        else:
-            assert False, "Model is not exist in {}".format(weight_path)
-
     def train(self):
         init()
         print("Using device:", self.device)
@@ -58,15 +51,9 @@ class Train:
         )
         print("The number of data in train set: ", train_set.__len__())
         print("The number of data in valid set: ", valid_set.__len__())
-        #self.load_model()
-        
-        #criterion = nn.MSELoss()
-        #criterion = nn.CrossEntropyLoss()
+
         criterion = MultiTasksLoss()
 
-        # define loss function and optimizer
-        #optimizer = torch.optim.SGD(self.model.parameters(), lr=self.configs['learning_rate'], 
-        #                            momentum=0.9, weight_decay = 0.0001)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.configs['learning_rate'])
 
         train_loss_list, val_loss_list = [], []
@@ -86,14 +73,13 @@ class Train:
                 images = images.to(self.device)
                 heatmaps = heatmaps.to(self.device)
                 labels = labels.to(self.device)
+                landmarks = landmarks.to(self.device)
 
                 optimizer.zero_grad()
 
-                heatmap_pred, label_pred = self.model(images, heatmaps)
-                #label_pred = self.model(images)
+                heatmap_pred, label_pred = self.model(images, landmarks)
 
                 loss = criterion(heatmap_pred, label_pred, heatmaps, labels)
-                #loss = criterion(label_pred, labels)
 
                 loss.backward()
                 optimizer.step()
@@ -121,11 +107,11 @@ class Train:
                     images = images.to(self.device)
                     heatmaps = heatmaps.to(self.device)
                     labels = labels.to(self.device)
+                    landmarks = landmarks.to(self.device)
 
-                    heatmap_pred, label_pred = self.model(images, heatmaps)
-                    #label_pred = self.model(images)
+                    heatmap_pred, label_pred = self.model(images, landmarks)
+
                     loss = criterion(heatmap_pred, label_pred, heatmaps, labels)
-                    #loss = criterion(label_pred, labels)
 
                     val_loss += loss.item()
 
