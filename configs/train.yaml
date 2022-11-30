@@ -1,7 +1,7 @@
 # model
 num_joints: 21
 num_classes: 12
-model_name: "posenet_large"
+model_name: "poseresnet_large_with_aug_best"
 
 # dataset
 data_path: "hagrid/hagrid_train2"
@@ -28,9 +28,9 @@ sigma: 3
 preprocess:
   crop_FOA: True
   resize_FOA: True
-  rotate: False
-  horizontal_flip: False
-  hsv: False
+  rotate: True
+  horizontal_flip: True
+  hsv: True
 
 # hyperparameters
 epochs: 20
