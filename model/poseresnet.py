@@ -138,10 +138,11 @@ class PoseResNet(nn.Module):
         h = self.heatmap_layer(h)
         heatmap = h
 
-        # prepare features for classification
+        # prepare backbone features for classification
         features = self.avgpool(features)
         features = features.view(features.size(0), -1)
 
+        # prepare heatmap features for classification
         h1 = self.avgpool(F.relu(h1))
         h1 = h1.view(h1.size(0), -1)
 
@@ -155,6 +156,7 @@ class PoseResNet(nn.Module):
         h_ = torch.mean(h_, dim=1, keepdim=True)
         h_ = h_.view(h_.size(0), -1)
 
+        # concatenate all features for classification
         x_ = torch.cat((features, h1, h2, h3, h_), dim=1)
         label = self.classification_layer(x_)
 
