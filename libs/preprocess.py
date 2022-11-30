@@ -50,7 +50,7 @@ class HandPreprocess:
 
                 bbox_coord = np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
 
-                angle = (np.random.rand() - 0.5) * 60
+                angle = (np.random.rand() - 0.5) * 30
                 M = cv2.getRotationMatrix2D((x, y), angle, 1.0)
                 img = cv2.warpAffine(img, M, (width, height))
 
