@@ -12,6 +12,9 @@ from libs.draw import draw_bones, draw_joints
 from libs.metrics import PCK, get_max_preds, calc_class_accuracy
 from model.poseresnet import PoseResNet
 
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
 
 class Test:
     def __init__(self, configs):
@@ -53,6 +56,7 @@ class Test:
         # --------------------------
         # Testing Stage
         # --------------------------
+        y_true, y_pred = [], []
         start_time = time.time()
         with torch.no_grad():
             for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(test_dataloader)):
@@ -60,7 +64,7 @@ class Test:
                 heatmaps = heatmaps.to(self.device)
                 labels = labels.to(self.device)
 
-                heatmap_pred, label_pred = self.model(images, heatmaps)
+                heatmap_pred, label_pred = self.model(images)
 
                 landmarks_pred, maxvals = get_max_preds(heatmap_pred.cpu().numpy())
 
@@ -70,6 +74,9 @@ class Test:
                 class_acc += calc_class_accuracy(label_pred, labels)
                 PCK_acc += PCK(landmarks_pred, landmarks, 
                                 self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
+
+                y_true.extend(labels.detach().cpu().numpy())
+                y_pred.extend(torch.argmax(label_pred, dim=1).detach().cpu().numpy())
                 
                 if self.configs['display_results']:
                     images[:, 0] = images[:, 0] * 0.229 + 0.485
@@ -136,6 +143,15 @@ class Test:
                                 exit(1)
 
         end_time = time.time()
+
+        cm = confusion_matrix(y_true, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=self.configs['classes_dict'].keys())
+        disp.plot()
+        ax, fig = plt.gca(), plt.gcf()
+        plt.setp(ax.get_xticklabels(), rotation=-90, ha="center", rotation_mode="default")
+        fig.tight_layout()
+        plt.savefig(os.path.join("results", "{}.png".format(self.configs['model_name'])))
+        #plt.show()
 
         print("Accuracy of classification: {}, Accuracy of pose estimation: {}, Testing cost {} sec(s) per image"
                 .format(class_acc / test_dataloader.__len__(), 
