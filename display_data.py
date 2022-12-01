@@ -8,9 +8,9 @@ from libs.load import load_data
 from libs.draw import draw_bones, draw_joints
 
 
-if __name__ == "__main__":
+def display_data(data_path):
     configs = None
-    with open("configs/test.yaml", "r") as stream:
+    with open(data_path, "r") as stream:
         try:
             configs = yaml.safe_load(stream)
         except yaml.YAMLError as exc:
@@ -60,3 +60,7 @@ if __name__ == "__main__":
                 if key == ord('q'):
                     print("quit display")
                     exit(1)
+
+
+if __name__ == "__main__":
+    display_data("configs/test.yaml")
