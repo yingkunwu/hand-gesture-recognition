@@ -32,9 +32,9 @@ Comparing with original PoseResNet, our model have an additional 1x1 convolution
 
 ### Usage
 
-1. **Dataset**
+1. **Dataset** </br>
 Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid).
-Afterwards, move annotation files to each image file which has the same class as the annotation file. Several sample images are provided in the data/hagrid file.
+Afterwards, move annotation files to each image file which has the same class as the annotation file. Several sample images are provided in the [data/hagrid](https://github.com/kunnnnethan/hand-gesture-recognition/tree/main/data/hagrid) file.
 Your dataset file should look like the following:
     ```
     hagrid/
@@ -58,8 +58,8 @@ Your dataset file should look like the following:
     python read_write_data.py
     ```
 
-2. **Train**
-Modified arguments in configs/train.yaml file before training. Several augmentation methods are provided as well. Set the following arguments to True if augmentations are needed.
+2. **Train** </br>
+Modified arguments in [configs/train.yaml](https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/configs/train.yaml) file before training. Several augmentation methods are provided as well. Set the following arguments to True if augmentations are needed.
     ```yaml
     preprocess:
         rotate: False
@@ -71,8 +71,8 @@ Modified arguments in configs/train.yaml file before training. Several augmentat
     python train.py
     ```
 
-3. **Test**
-Similarly, modified arguments in configs/test.yaml file before testing. Set the following argument to True if you want to visualize predicted result.
+3. **Test** </br>
+Similarly, modified arguments in [configs/test.yaml](https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/configs/test.yaml) file before testing. Set the following argument to True if you want to visualize predicted result.
     ```yaml
     display_results: False
     ```
