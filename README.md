@@ -1,1 +1,114 @@
 # hand-gesture-recognition
+
+Final project for UMN CSCI 5525 Machine Learning course
+
+### Introduction
+The objective of this project is to create a multi-task neural network which integrates pose estimation network with classification layers to maximize the performance of hand gesture recognition. I obtained good results by adding an additional layers in the [SimpleBaseline](https://arxiv.org/pdf/1804.06208.pdf) model.
+
+
+### Dataset
+
+In this project, we used [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid) as our dataset as it has 18 differect hand gestures with considerable variation in lighting, including artificial and natural light. Among those 18 different hand gestures, we selected 12 classes for our task. We further selected 2000 images in each classes for training and 200 images in each classes for testing in order to reduce the space of the dataset (the full data size is 716GB). Hand regions are extracted by cropping original images based on ground truth bounding box before training and testing. 
+
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/dataset.png" alt="dataset" height="430"/>
+
+12 differect gestures are shown above.
+
+
+### Model
+
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/model.png" alt="model" height="430"/>
+
+Comparing with original PoseResNet, our model have an additional 1x1 convolutional layer after each deconvolutional layers and the predicted heatmap. We concatenate those intermediate features from additional convolutional layers with features extracted from backbone ResNet before using linear layers to output final results. We use L2 norm loss for landmark heatmap prediction and cross entropy loss for classification.
+
+### Results
+
+Loss Curve
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/loss.png" alt="loss" height="430"/>
+
+Accuracy Curve
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/acc.png" alt="acc" height="430"/>
+
+| Method | Classification Accuracy | PCK |
+| -------- | -------- | -------- |
+| PoseResNet (Multi-Task) | 0.996 | 0.905 |
+
+
+### Usage
+
+1. **Dataset**
+Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid).
+Afterwards, move annotation files to each image file which has the same class as the annotation file. Several sample images are provided in the data/hagrid file.
+Your dataset file should look like the following:
+    ```
+    hagrid/
+        ├── train_val_call/
+            ├── ...jpg
+            └── call.json
+        ├── train_val_dislike/
+            ├── ...jpg
+            └── dislike.json
+        ├── train_val_fist/
+            ├── ...jpg
+            └── fist.json
+        ...
+    ```
+    (Optional) Run display_data.py to check if data are loaded correctly.
+    ```
+    python display_data.py
+    ```
+    (Optional) Run read_write_data.py if you want to create data with less number of images.
+    ```
+    python read_write_data.py
+    ```
+
+2. **Train**
+Modified arguments in configs/train.yaml file before training. Several augmentation methods are provided as well. Set the following arguments to True if augmentations are needed.
+    ```yaml
+    preprocess:
+        rotate: False
+        horizontal_flip: False
+        hsv: False
+    ```
+    Afterwards, simply run train.py
+    ```
+    python train.py
+    ```
+
+3. **Test**
+Similarly, modified arguments in configs/test.yaml file before testing. Set the following argument to True if you want to visualize predicted result.
+    ```yaml
+    display_results: False
+    ```
+    Afterwards, run test.py
+    ```
+    python test.py
+    ```
+    You can also download weights that I trained for our project:
+    * Model trained without augumentation: [poseresnet_no_aug](https://drive.google.com/uc?export=download&id=12d9gwkszSqxbgWln3h7JKnhmUS6kklyn)
+    * Model trained with augumentation: [poseresnet_with_aug](https://drive.google.com/uc?export=download&id=1pCVVX0p8T3pgVxixjidb2EjHyLcQzFHV)
+
+
+### References
+
+[stefanopini/simple-HRNet](https://github.com/stefanopini/simple-HRNet)
+
+**HaGRID - HAnd Gesture Recognition Image Dataset**
+```
+@article{hagrid,
+    title={HaGRID - HAnd Gesture Recognition Image Dataset},
+    author={Kapitanov, Alexander and Makhlyarchuk, Andrey and Kvanchiani, Karina},
+    journal={arXiv preprint arXiv:2206.08219},
+    year={2022}
+}
+```
+
+**Simple Baselines for Human Pose Estimation and Tracking**
+```
+@inproceedings{xiao2018simple,
+    author={Xiao, Bin and Wu, Haiping and Wei, Yichen},
+    title={Simple Baselines for Human Pose Estimation and Tracking},
+    booktitle = {European Conference on Computer Vision (ECCV)},
+    year = {2018}
+}
+```
