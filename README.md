@@ -23,7 +23,7 @@ Comparing with original PoseResNet, our model have an additional 1x1 convolution
 
 ### Results
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/loss.png" alt="loss" height="200"/><img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/acc.png" alt="acc" height="200"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/loss.png" alt="loss" height="300"/><img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/acc.png" alt="acc" height="300"/>
 
 | Method | Classification Accuracy | PCK |
 | -------- | -------- | -------- |
