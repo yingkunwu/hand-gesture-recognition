@@ -17,14 +17,13 @@ In this project, we used [HaGRID - HAnd Gesture Recognition Image Dataset](https
 
 ### Model
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/model.png" alt="model" height="300"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/model.png" alt="model" height="400"/>
 
 Comparing with original PoseResNet, our model have an additional 1x1 convolutional layer after each deconvolutional layers and the predicted heatmap. We concatenate those intermediate features from additional convolutional layers with features extracted from backbone ResNet before using linear layers to output final results. We use L2 norm loss for landmark heatmap prediction and cross entropy loss for classification.
 
 ### Results
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/loss.png" alt="loss" height="200"/>
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/acc.png" alt="acc" height="200"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/loss.png" alt="loss" height="200"/><img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/acc.png" alt="acc" height="200"/>
 
 | Method | Classification Accuracy | PCK |
 | -------- | -------- | -------- |
