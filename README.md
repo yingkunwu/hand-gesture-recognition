@@ -10,24 +10,21 @@ The objective of this project is to create a multi-task neural network which int
 
 In this project, we used [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid) as our dataset as it has 18 differect hand gestures with considerable variation in lighting, including artificial and natural light. Among those 18 different hand gestures, we selected 12 classes for our task. We further selected 2000 images in each classes for training and 200 images in each classes for testing in order to reduce the space of the dataset (the full data size is 716GB). Hand regions are extracted by cropping original images based on ground truth bounding box before training and testing. 
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/dataset.png" alt="dataset" height="430"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/dataset.png" alt="dataset" height="200"/>
 
 12 differect gestures are shown above.
 
 
 ### Model
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/model.png" alt="model" height="430"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/model.png" alt="model" height="300"/>
 
 Comparing with original PoseResNet, our model have an additional 1x1 convolutional layer after each deconvolutional layers and the predicted heatmap. We concatenate those intermediate features from additional convolutional layers with features extracted from backbone ResNet before using linear layers to output final results. We use L2 norm loss for landmark heatmap prediction and cross entropy loss for classification.
 
 ### Results
 
-Loss Curve
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/loss.png" alt="loss" height="430"/>
-
-Accuracy Curve
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/acc.png" alt="acc" height="430"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/loss.png" alt="loss" height="200"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/acc.png" alt="acc" height="200"/>
 
 | Method | Classification Accuracy | PCK |
 | -------- | -------- | -------- |
