@@ -33,4 +33,4 @@ preprocess:
   hsv: False
 
 # result
-display_results: True
+display_results: False
