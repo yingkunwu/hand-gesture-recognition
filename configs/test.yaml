@@ -1,10 +1,10 @@
 # model
 num_joints: 21
 num_classes: 12
-model_name: "poseresnet_large_with_aug_best"
+model_name: "poseresnet_with_aug"
 
 # dataset
-data_path: "hagrid/hagrid_test2"
+data_path: "data/hagrid/test"
 
 classes_dict:
   call: 0
@@ -28,9 +28,9 @@ sigma: 3
 preprocess:
   crop_FOA: True
   resize_FOA: True
-  rotate: True
-  horizontal_flip: True
-  hsv: True
+  rotate: False
+  horizontal_flip: False
+  hsv: False
 
 # result
-display_results: False
+display_results: True

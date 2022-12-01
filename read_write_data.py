@@ -73,4 +73,4 @@ def read_write_data(read_path, write_path, num_of_data):
 
 
 if __name__ == "__main__":
-    read_write_data("hagrid/hagrid_all", "hagrid/temp", 100)
+    read_write_data("data/hagrid_all", "data/hagrid", 2000)
