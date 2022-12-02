@@ -12,14 +12,7 @@ class SSDMobilenet():
     """
     Torchvision SSDLite model for gesture detection
     """
-    def __init__(self, num_classes: int):
-        """
-        Torchvision SSDLite model for gesture detection
-        Parameters
-        ----------
-        num_classes: int
-            Number of classes for detection
-        """
+    def __init__(self, num_classes: int = 20):
         super().__init__()
         self.num_classes = num_classes
 

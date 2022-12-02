@@ -1,11 +1,12 @@
 # model
 num_joints: 21
 num_classes: 12
-classifier_name: "poseresnet_with_aug"
+classifier_name: "poseresnet_large_with_aug_best"
 detector_name: "SSDLite"
 
 # data
-file_path: "data/hagrid/detect"
+data_path: "data/test.mov"
+save_path: "result.mov"
 
 classes_dict:
   call: 0
@@ -20,3 +21,9 @@ classes_dict:
   peace_inverted: 9
   stop: 10
   stop_inverted: 11
+
+img_size_for_detection: 320
+img_size_for_classification: 256
+
+# result
+display: True

@@ -2,7 +2,6 @@ import os
 import yaml
 import cv2
 import torch
-import glob
 import numpy as np
 import torch.nn.functional as F
 import torchvision.transforms as transforms
@@ -29,16 +28,6 @@ def resize(image, size):
     image = F.interpolate(image.unsqueeze(0), size=size, mode="nearest").squeeze(0)
     return image
 
-def load_image(ori_img):
-    #ori_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-    ori_height, ori_width, _ = ori_img.shape
-    img = ori_img.copy()
-    img = transforms.ToTensor()(img)
-    img, _ = pad_to_square(img, 0)
-    img = resize(img, 320)
-    img = img.unsqueeze(0)
-    return img, ori_img, 320, (ori_height, ori_width)
-
 
 def rescale_boxes(boxes, current_dim, original_shape):
     """ Rescales bounding boxes to the original shape """
@@ -59,17 +48,17 @@ def rescale_boxes(boxes, current_dim, original_shape):
     boxes[:, 1] = min(max(0, y1), orig_h)
     boxes[:, 2] = min(max(0, x2), orig_w)
     boxes[:, 3] = min(max(0, y2), orig_h)
-    return boxes.numpy().astype(np.int32)
+    return boxes.astype(np.int32)
 
 
 class Detect:
     def __init__(self, configs):
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.classifier = PoseResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
-        self.detector = SSDMobilenet(num_classes=20)
-        self.classifier = self.classifier.to(self.device)
+        self.detector = SSDMobilenet()
         self.detector.to(self.device)
+        self.classifier = PoseResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
+        self.classifier = self.classifier.to(self.device)
         self.classes_dict = {v: k for k, v in configs["classes_dict"].items()}
 
         self.transform = transforms.Compose([
@@ -78,13 +67,6 @@ class Detect:
         ])
 
     def load_model(self):
-        weight_path = os.path.join("weights", self.configs['classifier_name'] + ".pth")
-        if not os.path.exists(weight_path):
-            assert False, "Model is not exist in {}".format(weight_path)
-        
-        self.classifier.load_state_dict(torch.load(weight_path, map_location=self.device))
-        self.classifier.eval()
-
         weight_path = os.path.join("weights", self.configs['detector_name'] + ".pth")
         if not os.path.exists(weight_path):
             assert False, "Model is not exist in {}".format(weight_path)
@@ -92,50 +74,86 @@ class Detect:
         self.detector.load_state_dict(weight_path, map_location=self.device)
         self.detector.eval()
 
+        weight_path = os.path.join("weights", self.configs['classifier_name'] + ".pth")
+        if not os.path.exists(weight_path):
+            assert False, "Model is not exist in {}".format(weight_path)
+        
+        self.classifier.load_state_dict(torch.load(weight_path, map_location=self.device))
+        self.classifier.eval()
+
+    def process_image_for_detection(self, ori_img):
+        resize_shape = self.configs['img_size_for_detection']
+        img = ori_img.copy()
+        img = transforms.ToTensor()(img)
+        img, _ = pad_to_square(img, 0)
+        img = resize(img, resize_shape)
+        return img, resize_shape
+
+    def process_image_for_classification(self, img):
+        img = transforms.ToTensor()(img)
+        img = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(img)
+        img = resize(img, self.configs['img_size_for_classification'])
+        return img
+
     def detect(self):
         print("Using device:", self.device)
         self.load_model()
 
-        #files = glob.glob(os.path.join(self.configs['file_path'], "*.jpg"))
-        cap = cv2.VideoCapture("data/hagrid/test.mov")
+        cap = cv2.VideoCapture(self.configs['data_path'])
         if (cap.isOpened()== False): 
             assert False, "Error opening video stream or file"
-        #for file in files:
-        while(cap.isOpened()):
-            ret, frame = cap.read()
-            if ret:
-                img, ori_img, current_dim, original_shape = load_image(frame)
+
+        video_out = self.configs['save_path']
+        nb_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+
+        video_writer = cv2.VideoWriter(video_out,
+                                    cv2.VideoWriter_fourcc('m', 'p', '4', 'v'),
+                                    30.0,
+                                    (frame_w, frame_h))
+
+        for _ in range(nb_frames):
+            _, frame = cap.read()
+            height, width, _ = frame.shape
+            img, current_dim = self.process_image_for_detection(frame)
+
+            with torch.no_grad():
+                img = img.to(self.device)
+                output = self.detector(img.unsqueeze(0))[0]
+
+            # only do classification if score is larger than 0.5
+            score, box = output['scores'][:1], output['boxes'][:1]
+            if score > 0.5:
+                box = rescale_boxes(box.detach().cpu().numpy(), current_dim, (height, width))[0]
+
+                hand = frame[box[1]:box[3], box[0]:box[2]]
+                hand_height, hand_width, _ = hand.shape
+
+                hand = self.process_image_for_classification(hand)
 
                 with torch.no_grad():
-                    output = self.detector(img)[0]
+                    hand = hand.to(self.device)
+                    heatmap_pred, label_pred = self.classifier(hand.unsqueeze(0))
 
-                boxes = output['boxes'][:1]
-                box = rescale_boxes(boxes, current_dim, original_shape)[0]
-
-                hand = ori_img[box[1]:box[3], box[0]:box[2]]
-                hand_height, hand_width, _ = hand.shape
-                hand = self.transform(hand)
-                hand = resize(hand, 256)
-                heatmap_pred, label_pred = self.classifier(hand.unsqueeze(0))
+                pred_label = torch.argmax(label_pred[0].detach().cpu()).item()
                 landmarks_pred, maxvals = get_max_preds(heatmap_pred.detach().cpu().numpy())
-                landmarks_pred = landmarks_pred[0]
-                landmarks_pred[:, 0] = landmarks_pred[:, 0] * hand_width + box[0]
-                landmarks_pred[:, 1] = landmarks_pred[:, 1] * hand_height + box[1]
-                landmarks_pred = landmarks_pred.astype(np.int32)
+                landmarks_pred[0, :, 0] = landmarks_pred[0, :, 0] * hand_width + box[0]
+                landmarks_pred[0, :, 1] = landmarks_pred[0, :, 1] * hand_height + box[1]
+                landmarks_pred = landmarks_pred.squeeze(0).astype(np.int32)
 
-                ori_img = draw_bones(ori_img, landmarks_pred)
-                ori_img = draw_joints(ori_img, landmarks_pred)
-                ori_img = cv2.rectangle(ori_img, (box[0], box[1]), (box[2], box[3]), (255, 0, 0), 2)
+                frame = draw_bones(frame, landmarks_pred)
+                frame = draw_joints(frame, landmarks_pred)
+                frame = cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (255, 0, 0), 2)
+                frame = cv2.putText(frame, "Prediction: {}".format(self.classes_dict[pred_label]), 
+                                        (box[0], box[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-                pred_label = torch.argmax(label_pred[0]).cpu().item()
-                ori_img = cv2.putText(ori_img, "Prediction: {}".format(self.classes_dict[pred_label]), 
-                                                (box[0], box[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+            video_writer.write(frame)
 
-                cv2.imshow("ori_img", ori_img)
-                if cv2.waitKey(25) & 0xFF == ord('q'):
+            if self.configs['display']:
+                cv2.imshow("frame", frame)
+                if cv2.waitKey(100) & 0xFF == ord('q'):
                     break
-            else: 
-                break
             
         cap.release()
         cv2.destroyAllWindows()
