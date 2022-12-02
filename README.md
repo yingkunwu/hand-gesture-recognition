@@ -86,7 +86,8 @@ Similarly, modified arguments in [configs/test.yaml](https://github.com/kunnnnet
     
 4. **Detect** </br>
     For inference, we use [SSDLite](https://sc.link/YXg2), which is provided by [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid) again, for cropping hand region from whole image.
-    Again, modified arguments in [configs/detect.yaml](https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/configs/detect.yaml) file before inferencing. Noted that ```img_size_for_detection: 320``` should be fixed for SSDLite hand detector; unless you have re-trained it.
+    Again, modified arguments in [configs/detect.yaml](https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/configs/detect.yaml) file before inferencing. 
+    Noted that ```img_size_for_detection: 320``` should be fixed for SSDLite hand detector; unless you have re-trained it.
     Afterwards, run detect.py
     ```
     python detect.py
