@@ -30,7 +30,7 @@ class Test:
         else:
             assert False, "Model is not exist in {}".format(weight_path)
 
-    def detect(self):
+    def test(self):
         print("Using device:", self.device)
 
         test_set, test_dataloader= load_data(
@@ -169,4 +169,4 @@ if __name__ == "__main__":
     
     print(configs)
     t = Test(configs)
-    t.detect()
+    t.test()
