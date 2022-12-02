@@ -125,7 +125,7 @@ class Detect:
             # only do classification if score is larger than 0.5
             score, box = output['scores'][:1], output['boxes'][:1]
             if score > 0.5:
-                box = rescale_boxes(box.detach().cpu().numpy(), current_dim, (height, width))[0]
+                box = rescale_boxes(box.cpu().numpy(), current_dim, (height, width))[0]
 
                 hand = frame[box[1]:box[3], box[0]:box[2]]
                 hand_height, hand_width, _ = hand.shape
@@ -136,8 +136,8 @@ class Detect:
                     hand = hand.to(self.device)
                     heatmap_pred, label_pred = self.classifier(hand.unsqueeze(0))
 
-                pred_label = torch.argmax(label_pred[0].detach().cpu()).item()
-                landmarks_pred, maxvals = get_max_preds(heatmap_pred.detach().cpu().numpy())
+                pred_label = torch.argmax(label_pred[0].cpu()).item()
+                landmarks_pred, maxvals = get_max_preds(heatmap_pred.cpu().numpy())
                 landmarks_pred[0, :, 0] = landmarks_pred[0, :, 0] * hand_width + box[0]
                 landmarks_pred[0, :, 1] = landmarks_pred[0, :, 1] * hand_height + box[1]
                 landmarks_pred = landmarks_pred.squeeze(0).astype(np.int32)
