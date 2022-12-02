@@ -85,7 +85,7 @@ Similarly, modified arguments in [configs/test.yaml](https://github.com/kunnnnet
     * Model trained with augumentation: [poseresnet_with_aug](https://drive.google.com/uc?export=download&id=1pCVVX0p8T3pgVxixjidb2EjHyLcQzFHV)
     
 4. **Detect** </br>
-    For inference, we use [SSDLite](https://sc.link/YXg2), which is provided by [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid) again, for cropping hand region from whole image.
+    For inference, we use [SSDLite](https://sc.link/YXg2), which is provided by [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid) again, for cropping hand region from whole image. After extracting hand regions from images, it will be classified by our PoseResNet model.
     Again, modified arguments in [configs/detect.yaml](https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/configs/detect.yaml) file before inferencing.</br>
     Noted that ```img_size_for_detection: 320``` should be fixed for SSDLite hand detector; unless you have re-trained it.</br>
     Afterwards, run detect.py
