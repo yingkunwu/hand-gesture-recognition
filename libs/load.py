@@ -41,8 +41,8 @@ class HandDataset(Dataset):
         landmark = np.array(self.landmarks[idx])
         label = np.array(self.labels[idx])
 
-        # do image preprocessing
-        img, landmark = self.preprocess.apply(img, bbox, landmark)
+        # do data preprocessing
+        img, bbox, landmark = self.preprocess.apply(img, bbox, landmark)
 
         # convert image to RGB channels before converting to tensor type
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

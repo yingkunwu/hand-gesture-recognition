@@ -2,6 +2,14 @@ import numpy as np
 import cv2
 
 
+def transform(points, matrix):
+    data_type = points.dtype
+    matrix = np.vstack((matrix, np.array([0, 0, 1])))
+    points = np.hstack((points, np.ones((points.shape[0], 1))))
+    points = np.matmul(points, matrix.T)
+    return points[:, :2].astype(data_type)
+
+
 class HandPreprocess:
     def __init__(self, img_size, num_joints, preprocess):
         self.img_size = img_size
@@ -24,62 +32,66 @@ class HandPreprocess:
         if self.hsv and np.random.rand() > 0.5:
             img = self.hsv_(img)
 
-        if self.crop_FOA:
-            img, landmark = self.crop_image(img, bbox, landmark)
-        else:
-            img = cv2.resize(img, (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
+        img, landmark = self.process_image(img, bbox, landmark)
 
-        return img, landmark
+        return img, bbox, landmark
 
-    def crop_image(self, img, bbox, landmark):
+    def process_image(self, img, bbox, landmark):
         height, width, _ = img.shape
 
         x1, y1, w, h = int(bbox[0] * width), int(bbox[1] * height), int(bbox[2] * width), int(bbox[3] * height)
+        x2, y2 = x1 + w, y1 # top right corner
+        x3, y3 = x1 + w, y1 + h # bottom right corner
+        x4, y4 = x1, y1 + h # bottom left corner
 
         landmark[:, 0] = landmark[:, 0] * width
         landmark[:, 1] = landmark[:, 1] * height
 
-        new_img = None
-        if self.resize_FOA:
-            x2, y2 = x1 + w, y1 # top right corner
-            x3, y3 = x1 + w, y1 + h # bottom right corner
-            x4, y4 = x1, y1 + h # bottom left corner
-            if self.rotate:
-                x = int((x1 + x3) / 2)
-                y = int((y1 + y3) / 2)
+        if self.rotate:
+            cx = (width - 1) / 2
+            cy = (height - 1) / 2
 
-                bbox_coord = np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
+            bbox_coord = np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
 
-                angle = (np.random.rand() - 0.5) * 30
-                M = cv2.getRotationMatrix2D((x, y), angle, 1.0)
-                img = cv2.warpAffine(img, M, (width, height))
+            angle = (np.random.rand() - 0.5) * 30
+            M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
+            img = cv2.warpAffine(img, M, (width, height))
 
-                landmark = cv2.transform(landmark.reshape(1, self.num_joints, 2), M).reshape(self.num_joints, 2)
-                bbox_coord = cv2.transform(bbox_coord.reshape(1, 4, 2), M).reshape(4, 2)
+            landmark = cv2.transform(landmark.reshape(1, self.num_joints, 2), M).reshape(self.num_joints, 2)
+            bbox_coord = cv2.transform(bbox_coord.reshape(1, 4, 2), M).reshape(4, 2)
 
-                if angle > 0:
-                    x1, y1 = bbox_coord[0][0], bbox_coord[1][1]
-                    x3, y3 = bbox_coord[2][0], bbox_coord[3][1]
-                else:
-                    x1, y1 = bbox_coord[3][0], bbox_coord[0][1]
-                    x3, y3 = bbox_coord[1][0], bbox_coord[2][1]
+            if angle > 0:
+                x1, y1 = bbox_coord[0][0], bbox_coord[1][1]
+                x3, y3 = bbox_coord[2][0], bbox_coord[3][1]
+            else:
+                x1, y1 = bbox_coord[3][0], bbox_coord[0][1]
+                x3, y3 = bbox_coord[1][0], bbox_coord[2][1]
 
-                x1, y1 = max(x1, 0), max(y1, 0)
-                x3, y3 = min(x3, width), min(y3, height)
-                w, h = x3 - x1, y3 - y1
+            x1, y1 = max(x1, 0), max(y1, 0)
+            x3, y3 = min(x3, width), min(y3, height)
+            w, h = x3 - x1, y3 - y1
+  
+        if self.crop_FOA:
+            new_img = None
+            if self.resize_FOA:
+                new_img = img[y1:y3, x1:x3]
+            else:
+                size = max(h, w)
+                new_img = np.zeros((size, size, 3), dtype=np.uint8)
+                new_img[:h, :w] = img[y1:y3, x1:x3]
+                w, h = size, size
 
-            new_img = cv2.resize(img[y1:y3, x1:x3], (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
-        else:
-            x2, y2 = x1 + w, y1 + h
-            size = max(h, w)
-            new_img = np.zeros((size, size, 3), dtype=np.uint8)
-            new_img[:h, :w] = img[y1:y2, x1:x2]
-            w, h = size, size
+            landmark[:, 0] = landmark[:, 0] - x1
+            landmark[:, 1] = landmark[:, 1] - y1
+            width, height = w, h
+            img = new_img
 
-        landmark[:, 0] = (landmark[:, 0] - x1) / w
-        landmark[:, 1] = (landmark[:, 1] - y1) / h
+        img = cv2.resize(img, (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
 
-        return new_img, landmark
+        landmark[:, 0] = landmark[:, 0] / width
+        landmark[:, 1] = landmark[:, 1] / height
+
+        return img, landmark
 
     def horizontal_flip_(self, img, bbox, landmark):
         img = np.flip(img, axis=1)
