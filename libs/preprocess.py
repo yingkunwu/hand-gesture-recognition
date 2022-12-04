@@ -48,13 +48,18 @@ class HandPreprocess:
         landmark[:, 1] = landmark[:, 1] * height
 
         if self.rotate:
+            x = (x3 + x1) / 2
+            y = (y3 + y1) / 2
             cx = (width - 1) / 2
             cy = (height - 1) / 2
 
             bbox_coord = np.array([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
 
             angle = (np.random.rand() - 0.5) * 30
-            M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
+            T = np.array([[1.0, 0.0, cx - x], [0.0, 1.0, cy - y], [0.0, 0.0, 1.0]], dtype=np.float32)
+            R = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
+            R = np.vstack((R, np.array([0.0, 0.0, 1.0])))
+            M = np.matmul(R, T)[:2]
             img = cv2.warpAffine(img, M, (width, height))
 
             landmark = cv2.transform(landmark.reshape(1, self.num_joints, 2), M).reshape(self.num_joints, 2)
