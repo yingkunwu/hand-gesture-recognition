@@ -69,9 +69,18 @@ class PoseResNet(nn.Module):
         self.deconv2 = self._make_deconv_layer(512, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
         self.deconv3 = self._make_deconv_layer(512, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
 
-        self.bridge1 =  nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
-        self.bridge2 =  nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
-        self.bridge3 =  nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
+        self.bridge1 =  nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2d(256, momentum=bn_momentum),
+        )
+        self.bridge2 =  nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2d(256, momentum=bn_momentum),
+        )
+        self.bridge3 =  nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2d(256, momentum=bn_momentum),
+        )
 
         self.heatmap_layer = nn.Conv2d(512, nof_joints, kernel_size=1, stride=1, padding=0)
 
