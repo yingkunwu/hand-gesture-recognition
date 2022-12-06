@@ -2,6 +2,9 @@
 
 Final project for UMN CSCI 5525 Machine Learning course
 
+The hand detector is only responsible for detecting hand without doing classification
+img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/result.gif" alt="dataset" height="200"/>
+
 ### Introduction
 The objective of this project is to create a multi-task neural network which integrates pose estimation network with classification layers to maximize the performance of hand gesture recognition. I obtained good results by adding an additional layers in the [SimpleBaseline](https://arxiv.org/pdf/1804.06208.pdf) model.
 
