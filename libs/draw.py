@@ -10,22 +10,14 @@ def draw_bones(img, annotations):
         [0, 17], [17, 18], [18, 19], [19, 20]
     ]
 
-    colors = [
-        (0, 0, 255), (0, 0, 255), (0, 0, 255), (0, 0, 255),
-        (250, 250, 210), (250, 250, 210), (250, 250, 210), (250, 250, 210),
-        (60, 179, 113), (60, 179, 113), (60, 179, 113), (60, 179, 113),
-        (100, 149, 237), (100, 149, 237), (100, 149, 237), (100, 149, 237),
-        (153, 50, 204), (153, 50, 204), (153, 50, 204), (153, 50, 204)
-    ]
-
-    for (l, c) in zip(limbs, colors):
-        img = cv2.line(img, annotations[l[0]], annotations[l[1]], c, 2)
+    for l in limbs:
+        img = cv2.line(img, annotations[l[0]], annotations[l[1]], (255, 255, 255), 2)
     
     return img
 
 
 def draw_joints(img, annotations):
     for a in annotations:
-        img = cv2.circle(img, a, 1, (0, 0, 0), 3)
+        img = cv2.circle(img, a, 1, (155, 155, 155), 10)
 
     return img
