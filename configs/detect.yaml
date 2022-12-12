@@ -1,7 +1,7 @@
 # model
 num_joints: 21
 num_classes: 12
-classifier_name: "poseresnet_large_with_aug_best"
+classifier_name: "poseresnet"
 detector_name: "SSDLite"
 
 # data

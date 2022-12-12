@@ -9,7 +9,8 @@ import torch.nn.functional as F
 
 from libs.load import load_data
 from libs.draw import draw_bones, draw_joints
-from libs.metrics import PCK, get_max_preds, calc_class_accuracy
+from libs.utils import get_max_preds
+from libs.metrics import PCK, calc_class_accuracy
 from model.poseresnet import PoseResNet
 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
@@ -18,6 +19,7 @@ import matplotlib.pyplot as plt
 
 class Test:
     def __init__(self, configs):
+        self.make_paths()
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = PoseResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
@@ -29,6 +31,10 @@ class Test:
             self.model.load_state_dict(torch.load(weight_path, map_location=self.device))
         else:
             assert False, "Model is not exist in {}".format(weight_path)
+
+    def make_paths(self):
+        if not os.path.exists("results/"):
+            os.mkdir("results/")
 
     def test(self):
         print("Using device:", self.device)
@@ -66,17 +72,21 @@ class Test:
 
                 heatmap_pred, label_pred = self.model(images)
 
+                # calculate accuracy for classification
+                prediction = torch.argmax(label_pred, dim=1)
+                class_acc += calc_class_accuracy(prediction.cpu().numpy(), labels.cpu().numpy())
+
+                # calculate accuracy for classification
                 landmarks_pred, maxvals = get_max_preds(heatmap_pred.cpu().numpy())
 
                 landmarks = (landmarks * configs['img_size']).numpy()
                 landmarks_pred = landmarks_pred * configs['img_size']
 
-                class_acc += calc_class_accuracy(label_pred, labels)
                 PCK_acc += PCK(landmarks_pred, landmarks, 
                                 self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
 
-                y_true.extend(labels.detach().cpu().numpy())
-                y_pred.extend(torch.argmax(label_pred, dim=1).detach().cpu().numpy())
+                y_true.extend(labels.cpu().numpy())
+                y_pred.extend(prediction.cpu().numpy())
                 
                 if self.configs['display_results']:
                     images[:, 0] = images[:, 0] * 0.229 + 0.485
@@ -144,6 +154,7 @@ class Test:
 
         end_time = time.time()
 
+        # generate covariance matrix of predicted labels and ground truth labels
         cm = confusion_matrix(y_true, y_pred)
         disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=self.configs['classes_dict'].keys())
         disp.plot()
@@ -151,7 +162,6 @@ class Test:
         plt.setp(ax.get_xticklabels(), rotation=-90, ha="center", rotation_mode="default")
         fig.tight_layout()
         plt.savefig(os.path.join("results", "{}.png".format(self.configs['model_name'])))
-        #plt.show()
 
         print("Accuracy of classification: {}, Accuracy of pose estimation: {}, Testing cost {} sec(s) per image"
                 .format(class_acc / test_dataloader.__len__(), 

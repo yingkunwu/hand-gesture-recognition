@@ -47,7 +47,7 @@ class HandPreprocess:
         landmark[:, 0] = landmark[:, 0] * width
         landmark[:, 1] = landmark[:, 1] * height
 
-        if self.rotate:
+        if self.rotate and np.random.rand() > 0.5:
             x = (x3 + x1) / 2
             y = (y3 + y1) / 2
             cx = (width - 1) / 2

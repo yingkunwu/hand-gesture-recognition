@@ -124,7 +124,7 @@ class PoseResNet(nn.Module):
         layers.append(nn.ReLU(inplace=True))
         return nn.Sequential(*layers)
 
-    def forward(self, x, ground_truth_heatmap=None):
+    def forward(self, x):
         x = self.cnn(x)
 
         x = self.layer1(x)

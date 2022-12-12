@@ -1,10 +1,10 @@
 # model
 num_joints: 21
 num_classes: 12
-model_name: "poseresnet_with_aug"
+model_name: "poseresnet"
 
 # dataset
-data_path: "data/hagrid/test"
+data_path: "hagrid/hagrid_test2"
 
 classes_dict:
   call: 0

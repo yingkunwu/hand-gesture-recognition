@@ -1,6 +1,7 @@
 import os
 import random
 import yaml
+import json
 import numpy as np
 from tqdm import tqdm
 import torch
@@ -8,7 +9,8 @@ import torch.nn as nn
 
 from libs.load import load_data
 from libs.loss import MultiTasksLoss
-from libs.metrics import PCK, get_max_preds, calc_class_accuracy
+from libs.utils import get_max_preds
+from libs.metrics import PCK, calc_class_accuracy
 from model.poseresnet import PoseResNet
 
 
@@ -23,7 +25,6 @@ def init():
 class Train:
     def __init__(self, configs):
         self.make_paths()
-
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = PoseResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
@@ -56,9 +57,14 @@ class Train:
 
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.configs['learning_rate'])
 
-        train_loss_list, val_loss_list = [], []
-        train_class_acc_list, val_class_acc_list = [], []
-        train_PCK_acc_list, val_PCK_acc_list = [], []
+        log_dict = {
+            "train_loss_list": [],
+            "train_class_acc_list": [],
+            "train_PCK_acc_list": [],
+            "val_loss_list": [],
+            "val_class_acc_list": [],
+            "val_PCK_acc_list": []
+        }
 
         for epoch in range(self.configs['epochs']):
             train_loss, val_loss = 0, 0
@@ -86,7 +92,8 @@ class Train:
                 train_loss += loss.item()
 
                 if label_pred is not None:
-                    train_class_acc += calc_class_accuracy(label_pred.detach(), labels)
+                    prediction = torch.argmax(label_pred, dim=1)
+                    train_class_acc += calc_class_accuracy(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy())
 
                 if heatmap_pred is not None:
                     landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
@@ -114,7 +121,8 @@ class Train:
                     val_loss += loss.item()
 
                     if label_pred is not None:
-                        val_class_acc += calc_class_accuracy(label_pred.detach(), labels)
+                        prediction = torch.argmax(label_pred, dim=1)
+                        val_class_acc += calc_class_accuracy(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy())
 
                     if heatmap_pred is not None:
                         landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
@@ -143,33 +151,23 @@ class Train:
             )
             torch.save(self.model.state_dict(), os.path.join("weights", self.configs['model_name'] + ".pth"))
 
-            train_loss_list.append(train_loss / train_dataloader.__len__()) 
-            train_class_acc_list.append(train_class_acc / train_dataloader.__len__())
-            train_PCK_acc_list.append(train_PCK_acc / train_dataloader.__len__())
+            log_dict["train_loss_list"].append(train_loss / train_dataloader.__len__()) 
+            log_dict["train_class_acc_list"].append(train_class_acc / train_dataloader.__len__())
+            log_dict["train_PCK_acc_list"].append(train_PCK_acc / train_dataloader.__len__())
 
-            val_loss_list.append(val_loss / val_dataloader.__len__())
-            val_class_acc_list.append(val_class_acc / val_dataloader.__len__())
-            val_PCK_acc_list.append(val_PCK_acc / val_dataloader.__len__())
+            log_dict["val_loss_list"].append(val_loss / val_dataloader.__len__())
+            log_dict["val_class_acc_list"].append(val_class_acc / val_dataloader.__len__())
+            log_dict["val_PCK_acc_list"].append(val_PCK_acc / val_dataloader.__len__())
 
         # --------------------------
         # Save Logs into .txt files
         # --------------------------
-        log_name_dict = {
-            # don't know why I can't use np.array(train_loss_list) directly
-            "train_loss": torch.tensor(train_loss_list).cpu().numpy(), 
-            "train_class_acc": torch.tensor(train_class_acc_list).cpu().numpy(), 
-            "train_PCK_acc": torch.tensor(train_PCK_acc_list).cpu().numpy(), 
-            "val_loss": torch.tensor(val_loss_list).cpu().numpy(), 
-            "val_class_acc": torch.tensor(val_class_acc_list).cpu().numpy(), 
-            "val_PCK_acc": torch.tensor(val_PCK_acc_list).cpu().numpy()
-        }
-
         logs_path = os.path.join("logs", self.configs['model_name'])
         if not os.path.exists(logs_path):
             os.mkdir(logs_path)
 
-        for keys, values in log_name_dict.items():
-            np.savetxt(os.path.join(logs_path, "{}_{}.txt").format(self.configs['model_name'], keys), values, delimiter=',')
+        with open(os.path.join(logs_path, "history.json"), "w") as outfile:
+            json.dump(log_dict, outfile, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
