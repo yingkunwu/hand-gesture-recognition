@@ -84,8 +84,7 @@ Similarly, modified arguments in [configs/test.yaml](https://github.com/kunnnnet
     python test.py
     ```
     You can also download weights that I trained for our project:
-    * Model trained without augumentation: [poseresnet_no_aug](https://drive.google.com/uc?export=download&id=17wSpayYTVNc3j8lGQsaA0_PRz8y_ZLtw)
-    * Model trained with augumentation: [poseresnet_with_aug](https://drive.google.com/uc?export=download&id=16b5l81KiulVz-tX5XZ0dGnCCI_4O_Rqa)
+    * [poseresnet](https://drive.google.com/uc?export=download&id=1BkifTY7LXlwvrvlpV73VNQP-2vaf-paZ)
     
 4. **Detect** </br>
     For inference, we use [SSDLite](https://sc.link/YXg2), which is provided by [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid) again, for cropping hand region from whole image. After extracting hand regions from images, it will be classified by our PoseResNet model.
