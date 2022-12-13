@@ -78,8 +78,6 @@ class Detect:
 
         for i in range(nb_frames):
             _, frame = cap.read()
-            if i % 3 != 0:
-                continue
             height, width, _ = frame.shape
             img, current_dim = self.process_image_for_detection(frame)
 

@@ -72,14 +72,17 @@ class PoseResNet(nn.Module):
         self.bridge1 =  nn.Sequential(
             nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2d(256, momentum=bn_momentum),
+            nn.ReLU(inplace=True),
         )
         self.bridge2 =  nn.Sequential(
             nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2d(256, momentum=bn_momentum),
+            nn.ReLU(inplace=True),
         )
         self.bridge3 =  nn.Sequential(
             nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2d(256, momentum=bn_momentum),
+            nn.ReLU(inplace=True),
         )
 
         self.heatmap_layer = nn.Conv2d(512, nof_joints, kernel_size=1, stride=1, padding=0)
@@ -152,13 +155,13 @@ class PoseResNet(nn.Module):
         features = features.view(features.size(0), -1)
 
         # prepare heatmap features for classification
-        h1 = self.avgpool(F.relu(h1))
+        h1 = self.avgpool(h1)
         h1 = h1.view(h1.size(0), -1)
 
-        h2 = self.avgpool(F.relu(h2))
+        h2 = self.avgpool(h2)
         h2 = h2.view(h2.size(0), -1)
 
-        h3 = self.avgpool(F.relu(h3))
+        h3 = self.avgpool(h3)
         h3 = h3.view(h3.size(0), -1)
 
         h_ = self.head(h)

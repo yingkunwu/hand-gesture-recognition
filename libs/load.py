@@ -98,6 +98,9 @@ class HandDataset(Dataset):
         labels_output = []
         landmarks_output = []
 
+        if len(json_file_path) == 0:
+            assert False, "json files which store annotations are not found"
+
         for json_path in json_file_path:
             file_path = os.path.split(json_path)[0]
             f = open(json_path)

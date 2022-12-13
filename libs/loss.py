@@ -11,7 +11,7 @@ class MultiTasksLoss(nn.Module):
         if heatmap_pred is not None and label_pred is not None:
             regression_loss = self.regression(heatmap_pred, heatmap_target)
             classification_lass = self.classification(label_pred, label_target)
-            return regression_loss + classification_lass * 0.001
+            return regression_loss + classification_lass * 0.002
         elif heatmap_pred is not None:
             regression_loss = self.regression(heatmap_pred, heatmap_target)
             return regression_loss
