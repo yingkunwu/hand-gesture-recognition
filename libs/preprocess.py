@@ -2,14 +2,6 @@ import numpy as np
 import cv2
 
 
-def transform(points, matrix):
-    data_type = points.dtype
-    matrix = np.vstack((matrix, np.array([0, 0, 1])))
-    points = np.hstack((points, np.ones((points.shape[0], 1))))
-    points = np.matmul(points, matrix.T)
-    return points[:, :2].astype(data_type)
-
-
 class HandPreprocess:
     def __init__(self, img_size, num_joints, preprocess):
         self.img_size = img_size
@@ -32,11 +24,11 @@ class HandPreprocess:
         if self.hsv and np.random.rand() > 0.5:
             img = self.hsv_(img)
 
-        img, landmark = self.process_image(img, bbox, landmark)
+        img, landmark = self.preprocess_(img, bbox, landmark)
 
         return img, bbox, landmark
 
-    def process_image(self, img, bbox, landmark):
+    def preprocess_(self, img, bbox, landmark):
         height, width, _ = img.shape
 
         x1, y1, w, h = int(bbox[0] * width), int(bbox[1] * height), int(bbox[2] * width), int(bbox[3] * height)
