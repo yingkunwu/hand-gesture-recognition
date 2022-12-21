@@ -21,7 +21,7 @@ def calc_dists(preds, target, normalize):
                     dists[c, n] = -1
         return dists
 
-def dist_acc(dists, thr=0.5):
+def dist_acc(dists, thr=0.05):
         ''' Return percentage below threshold while ignoring values with a -1 '''
         dist_cal = np.not_equal(dists, -1)
         num_dist_cal = dist_cal.sum()
@@ -39,7 +39,7 @@ def PCK(pred, target, h, w, num_joints):
     '''
 
     # h and w is the size of the bbox; the distance is defined as a fraction of the bounding box size
-    norm = np.ones((pred.shape[0], 2)) * np.array([h, w]) / 10
+    norm = np.ones((pred.shape[0], 2)) * np.array([h, w])
 
     dists = calc_dists(pred, target, norm)
 
