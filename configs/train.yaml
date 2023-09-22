@@ -1,24 +1,33 @@
 # model
 num_joints: 21
-num_classes: 12
+num_classes: 19
 model_name: "poseresnet"
 
 # dataset
-data_path: "hagrid/hagrid_train2"
+data_path: 
+  train: "data/hagrid/train"
+  test: "data/hagrid/test"
 
 classes_dict:
   call: 0
   dislike: 1
   fist: 2
-  like: 3
-  mute: 4
-  ok: 5
-  one: 6
-  palm: 7
-  peace: 8
-  peace_inverted: 9
-  stop: 10
-  stop_inverted: 11
+  four: 3
+  like: 4
+  mute: 5
+  ok: 6
+  one: 7
+  palm: 8
+  peace: 9
+  peace_inverted: 10
+  rock: 11
+  stop: 12
+  stop_inverted: 13
+  three: 14
+  three2: 15
+  two_up: 16
+  two_up_inverted: 17
+  no_gesture: 18
 
 batch_size: 32
 img_size: 256

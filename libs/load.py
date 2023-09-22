@@ -130,18 +130,18 @@ class HandDataset(Dataset):
 
 def load_data(data_path, classes_dict, batch_size, img_size, num_joints, sigma, preprocess, action):
     if action == "train":
-        train_set = HandDataset(data_path, classes_dict, img_size, num_joints, sigma, preprocess)
+        train_set = HandDataset(data_path['train'], classes_dict, img_size, num_joints, sigma, preprocess)
         train_set_size = int(len(train_set) * 0.8)
         valid_set_size = len(train_set) - train_set_size
         train_set, valid_set = random_split(train_set, [train_set_size, valid_set_size])
 
-        train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4)
-        val_dataloader = DataLoader(valid_set, batch_size=batch_size, shuffle=False, num_workers=4)
+        train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+        val_dataloader = DataLoader(valid_set, batch_size=batch_size * 2, shuffle=False, num_workers=4, pin_memory=True)
         return train_set, valid_set, train_dataloader, val_dataloader
 
     elif action == "test":
-        test_set = HandDataset(data_path, classes_dict, img_size, num_joints, sigma, preprocess)
-        test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=4)
+        test_set = HandDataset(data_path['test'], classes_dict, img_size, num_joints, sigma, preprocess)
+        test_dataloader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
         return test_set, test_dataloader
 
     else:

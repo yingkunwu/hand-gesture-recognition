@@ -5,7 +5,7 @@ import json
 import numpy as np
 from tqdm import tqdm
 import torch
-import torch.nn as nn
+from sklearn.metrics import f1_score
 
 from libs.load import load_data
 from libs.loss import MultiTasksLoss
@@ -69,6 +69,7 @@ class Train:
         for epoch in range(self.configs['epochs']):
             train_loss, val_loss = 0, 0
             train_class_acc, val_class_acc = 0, 0
+            train_f1score, val_f1score = 0, 0
             train_PCK_acc, val_PCK_acc = 0, 0
 
             # --------------------------
@@ -94,6 +95,7 @@ class Train:
                 if label_pred is not None:
                     prediction = torch.argmax(label_pred, dim=1)
                     train_class_acc += calc_class_accuracy(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy())
+                    train_f1score += f1_score(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy(), average='macro')
 
                 if heatmap_pred is not None:
                     landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
@@ -123,6 +125,7 @@ class Train:
                     if label_pred is not None:
                         prediction = torch.argmax(label_pred, dim=1)
                         val_class_acc += calc_class_accuracy(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy())
+                        val_f1score += f1_score(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy(), average='macro')
 
                     if heatmap_pred is not None:
                         landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
@@ -137,15 +140,17 @@ class Train:
             # Logging Stage
             # --------------------------
             print("Epoch: ", epoch + 1)
-            print("train_loss: {}, train_class_acc: {}, train_PCK_acc: {}"
+            print("train_loss: {}, train_class_acc: {}, train_f1score: {}, train_PCK_acc: {}"
                     .format(train_loss / train_dataloader.__len__(), 
                             train_class_acc / train_dataloader.__len__(),
+                            train_f1score / train_dataloader.__len__(),
                             train_PCK_acc / train_dataloader.__len__(),
                     )
             )
-            print("val_loss: {}, val_class_acc: {}, val_PCK_acc: {}"
+            print("val_loss: {}, val_class_acc: {}, val_f1score: {}, val_PCK_acc: {}"
                     .format(val_loss / val_dataloader.__len__(), 
                             val_class_acc / val_dataloader.__len__(),
+                            val_f1score / val_dataloader.__len__(),
                             val_PCK_acc / val_dataloader.__len__(),
                     )
             )

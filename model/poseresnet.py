@@ -69,21 +69,9 @@ class PoseResNet(nn.Module):
         self.deconv2 = self._make_deconv_layer(512, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
         self.deconv3 = self._make_deconv_layer(512, 256, kernel_size=4, stride=2, padding=1, bn_momentum=bn_momentum)
 
-        self.bridge1 =  nn.Sequential(
-            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm2d(256, momentum=bn_momentum),
-            nn.ReLU(inplace=True),
-        )
-        self.bridge2 =  nn.Sequential(
-            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm2d(256, momentum=bn_momentum),
-            nn.ReLU(inplace=True),
-        )
-        self.bridge3 =  nn.Sequential(
-            nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
-            nn.BatchNorm2d(256, momentum=bn_momentum),
-            nn.ReLU(inplace=True),
-        )
+        self.bridge1 = self._make_bridge(256, 256, bn_momentum)
+        self.bridge2 = self._make_bridge(256, 256, bn_momentum)
+        self.bridge3 = self._make_bridge(256, 256, bn_momentum)
 
         self.heatmap_layer = nn.Conv2d(512, nof_joints, kernel_size=1, stride=1, padding=0)
 
@@ -96,10 +84,10 @@ class PoseResNet(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
         self.classification_layer = nn.Sequential(
-            nn.Linear(3840, 3840),
+            nn.Linear(3840, 400),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(3840, nof_classes)
+            nn.Linear(400, nof_classes)
         )
 
     def _make_layer(self, block, conv_planes, identity_planes, blocks, stride, bn_momentum):
@@ -123,6 +111,13 @@ class PoseResNet(nn.Module):
         layers =[]
         layers.append(nn.ConvTranspose2d(in_channels, out_channels, 
                             kernel_size=kernel_size, stride=stride, padding=padding, output_padding=0, bias=False))
+        layers.append(nn.BatchNorm2d(out_channels, momentum=bn_momentum))
+        layers.append(nn.ReLU(inplace=True))
+        return nn.Sequential(*layers)
+
+    def _make_bridge(self, in_channels, out_channels, bn_momentum):
+        layers = []
+        layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0))
         layers.append(nn.BatchNorm2d(out_channels, momentum=bn_momentum))
         layers.append(nn.ReLU(inplace=True))
         return nn.Sequential(*layers)
