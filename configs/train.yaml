@@ -1,12 +1,7 @@
-# model
+# dataset
+data_path: "data/hagrid_crop/train"
 num_joints: 21
 num_classes: 19
-model_name: "poseresnet"
-
-# dataset
-data_path: 
-  train: "data/hagrid/train"
-  test: "data/hagrid/test"
 
 classes_dict:
   call: 0
@@ -29,18 +24,10 @@ classes_dict:
   two_up_inverted: 17
   no_gesture: 18
 
-batch_size: 32
-img_size: 256
-sigma: 3
-
 # data preprocess and augmentation
 preprocess:
-  crop_FOA: True
-  resize_FOA: True
-  rotate: True
-  horizontal_flip: True
-  hsv: True
-
-# hyperparameters
-epochs: 30
-learning_rate: 0.001
+  crop_FOA: False
+  resize_FOA: False
+  rotate: False
+  horizontal_flip: False
+  hsv: False

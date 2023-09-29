@@ -50,7 +50,7 @@ class PoseResNet(nn.Module):
             101: (Bottleneck, [3, 4, 23, 3]),
             152: (Bottleneck, [3, 8, 36, 3])
         }
-        assert resnet_size in resnet_spec.keys()
+        assert resnet_size in resnet_spec.keys(), "choices of resnet backbone: 50, 101, 152"
         block, layers = resnet_spec[resnet_size]
 
         self.cnn = nn.Sequential(

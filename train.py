@@ -2,9 +2,12 @@ import os
 import random
 import yaml
 import json
+import argparse
 import numpy as np
 from tqdm import tqdm
 import torch
+from torch.optim import SGD
+from torch.optim.lr_scheduler import LinearLR
 from sklearn.metrics import f1_score
 
 from libs.load import load_data
@@ -12,6 +15,7 @@ from libs.loss import MultiTasksLoss
 from libs.utils import get_max_preds
 from libs.metrics import PCK, calc_class_accuracy
 from model.poseresnet import PoseResNet
+from model.resnext import ResNeXt
 
 
 def init():
@@ -23,11 +27,24 @@ def init():
 
 
 class Train:
-    def __init__(self, configs):
+    def __init__(self, opt, configs):
         self.make_paths()
+        self.opt = opt
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = PoseResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
+        if opt.model_type == 'resnet':
+            self.model = PoseResNet(
+                resnet_size=int(opt.model_ver),
+                nof_joints=configs['num_joints'],
+                nof_classes=configs['num_classes']
+            )
+        elif opt.model_type == 'resnext':
+            self.model = ResNeXt(
+                resnext_size=int(opt.model_ver),
+                nof_classes=configs['num_classes']
+            )
+        else:
+            raise NotImplementedError
         self.model = self.model.to(self.device)
 
     def make_paths(self):
@@ -40,13 +57,16 @@ class Train:
         init()
         print("Using device:", self.device)
 
+        total_params = sum(p.numel() for p in self.model.parameters())
+        print("Number of model parameters:", total_params)
+
         train_set, valid_set, train_dataloader, val_dataloader = load_data(
             self.configs['data_path'], 
             self.configs['classes_dict'],
-            self.configs['batch_size'], 
-            self.configs['img_size'], 
+            self.opt.batch_size, 
+            self.opt.img_size, 
             self.configs['num_joints'], 
-            self.configs['sigma'], 
+            self.opt.sigma, 
             self.configs['preprocess'], 
             "train"
         )
@@ -55,18 +75,23 @@ class Train:
 
         criterion = MultiTasksLoss()
 
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.configs['learning_rate'])
+        optimizer = SGD(self.model.parameters(), lr=self.opt.lr, momentum=0.9)
+        scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=0.01, total_iters=self.opt.epochs)
 
         log_dict = {
             "train_loss_list": [],
             "train_class_acc_list": [],
+            "train_f1score_list": [],
             "train_PCK_acc_list": [],
             "val_loss_list": [],
             "val_class_acc_list": [],
+            "val_f1score_list": [],
             "val_PCK_acc_list": []
         }
 
-        for epoch in range(self.configs['epochs']):
+        best_f1score = 0
+
+        for epoch in range(self.opt.epochs):
             train_loss, val_loss = 0, 0
             train_class_acc, val_class_acc = 0, 0
             train_f1score, val_f1score = 0, 0
@@ -100,11 +125,13 @@ class Train:
                 if heatmap_pred is not None:
                     landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
 
-                    landmarks = (landmarks * configs['img_size']).numpy()
-                    landmarks_pred = landmarks_pred * configs['img_size']
+                    landmarks = (landmarks * self.opt.img_size).numpy()
+                    landmarks_pred = landmarks_pred * self.opt.img_size
 
                     train_PCK_acc += PCK(landmarks_pred, landmarks, 
-                                    self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
+                                    self.opt.img_size, self.opt.img_size, self.configs['num_joints'])
+
+            scheduler.step()
 
             # --------------------------
             # Validation Stage
@@ -130,11 +157,11 @@ class Train:
                     if heatmap_pred is not None:
                         landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
 
-                        landmarks = (landmarks * configs['img_size']).numpy()
-                        landmarks_pred = landmarks_pred * configs['img_size']
+                        landmarks = (landmarks * self.opt.img_size).numpy()
+                        landmarks_pred = landmarks_pred * self.opt.img_size
 
                         val_PCK_acc += PCK(landmarks_pred, landmarks, 
-                                        self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
+                                        self.opt.img_size, self.opt.img_size, self.configs['num_joints'])
 
             # --------------------------
             # Logging Stage
@@ -154,20 +181,30 @@ class Train:
                             val_PCK_acc / val_dataloader.__len__(),
                     )
             )
-            torch.save(self.model.state_dict(), os.path.join("weights", self.configs['model_name'] + ".pth"))
 
             log_dict["train_loss_list"].append(train_loss / train_dataloader.__len__()) 
             log_dict["train_class_acc_list"].append(train_class_acc / train_dataloader.__len__())
+            log_dict["train_f1score_list"].append(train_f1score / train_dataloader.__len__())
             log_dict["train_PCK_acc_list"].append(train_PCK_acc / train_dataloader.__len__())
 
             log_dict["val_loss_list"].append(val_loss / val_dataloader.__len__())
             log_dict["val_class_acc_list"].append(val_class_acc / val_dataloader.__len__())
+            log_dict["val_f1score_list"].append(val_f1score / val_dataloader.__len__())
             log_dict["val_PCK_acc_list"].append(val_PCK_acc / val_dataloader.__len__())
+
+            # --------------------------------------
+            # Save the Model with the Best F1-Score
+            # --------------------------------------
+            if val_f1score > best_f1score:
+                best_f1score = val_f1score
+
+                torch.save(self.model.state_dict(), os.path.join("weights", self.opt.model_name + ".pth"))
+                print("Current best model is saved!")
 
         # --------------------------
         # Save Logs into .txt files
         # --------------------------
-        logs_path = os.path.join("logs", self.configs['model_name'])
+        logs_path = os.path.join("logs", self.opt.model_name)
         if not os.path.exists(logs_path):
             os.mkdir(logs_path)
 
@@ -182,7 +219,18 @@ if __name__ == "__main__":
             configs = yaml.safe_load(stream)
         except yaml.YAMLError as exc:
             print(exc)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_name', type=str, default='poseresnet', help='name of the model to be trained')
+    parser.add_argument('--model_type', type=str, default='resnet', choices=['resnet', 'resnext'], help='model type')
+    parser.add_argument('--model_ver', type=str, default='50', choices=['50', '101', '152'], help='model version')
+    parser.add_argument('--batch_size', type=int, default=32, help='batch size')
+    parser.add_argument('--epochs', type=int, default=50, help='epochs')
+    parser.add_argument('--lr', type=float, default=0.05, help='leanring rate')
+    parser.add_argument('--img_size', type=int, default=256, help='image size')
+    parser.add_argument('--sigma', type=int, default=3, help='sigma of the gaussian distribution of the heatmap')
+    opt = parser.parse_args()
+    print(opt)
     
-    print(configs)
-    t = Train(configs)
+    t = Train(opt, configs)
     t.train()

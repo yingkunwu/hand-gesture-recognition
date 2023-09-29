@@ -83,7 +83,8 @@ class HandPreprocess:
             width, height = w, h
             img = new_img
 
-        img = cv2.resize(img, (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
+        if height != self.img_size or width != self.img_size:
+            img = cv2.resize(img, (self.img_size, self.img_size), interpolation=cv2.INTER_CUBIC)
 
         landmark[:, 0] = landmark[:, 0] / width
         landmark[:, 1] = landmark[:, 1] / height
