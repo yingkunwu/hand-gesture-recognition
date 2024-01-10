@@ -16,7 +16,7 @@ def display_data(data_path):
         except yaml.YAMLError as exc:
             print(exc)
 
-    test_set, test_dataloader = load_data(
+    test_set, _, test_dataloader, _ = load_data(
         configs['data_path'], 
         configs['classes_dict'],
         configs['batch_size'], 
@@ -24,7 +24,7 @@ def display_data(data_path):
         configs['num_joints'], 
         configs['sigma'], 
         configs['preprocess'], 
-        "test"
+        "train"
     )
 
     print("length of test set: ", test_set.__len__())
@@ -63,4 +63,4 @@ def display_data(data_path):
 
 
 if __name__ == "__main__":
-    display_data("configs/test.yaml")
+    display_data("configs/train.yaml")

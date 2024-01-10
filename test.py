@@ -6,15 +6,16 @@ from tqdm import tqdm
 import numpy as np
 import torch
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import f1_score
 
 from libs.load import load_data
 from libs.draw import draw_bones, draw_joints
 from libs.utils import get_max_preds
 from libs.metrics import PCK, calc_class_accuracy
 from model.poseresnet import PoseResNet
-
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-import matplotlib.pyplot as plt
+from model.resnext import ResNeXt
 
 
 class Test:
@@ -22,7 +23,12 @@ class Test:
         self.make_paths()
         self.configs = configs
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = PoseResNet(nof_joints=self.configs['num_joints'], nof_classes=self.configs['num_classes'])
+        #self.model = PoseResNet(
+        #    resnet_size=self.configs['resnet'], 
+        #    nof_joints=self.configs['num_joints'],
+        #    nof_classes=self.configs['num_classes']
+        #)
+        self.model = ResNeXt(resnext_size=self.configs['resnext'], num_classes=self.configs['num_classes'])
         self.model = self.model.to(self.device)
 
     def load_model(self):
@@ -54,7 +60,7 @@ class Test:
         self.load_model()
         self.model.eval()
 
-        class_acc, PCK_acc = 0.0, 0.0
+        class_acc, f1, PCK_acc = 0.0, 0.0, 0.0
 
         label_dict = test_set.classes
         label_dict = {v: k for k, v in label_dict.items()}
@@ -76,14 +82,17 @@ class Test:
                 prediction = torch.argmax(label_pred, dim=1)
                 class_acc += calc_class_accuracy(prediction.cpu().numpy(), labels.cpu().numpy())
 
+                f1 += f1_score(prediction.cpu().numpy(), labels.cpu().numpy(), average='macro')
+
                 # calculate accuracy for classification
-                landmarks_pred, maxvals = get_max_preds(heatmap_pred.cpu().numpy())
+                if heatmap_pred is not None:
+                    landmarks_pred, maxvals = get_max_preds(heatmap_pred.cpu().numpy())
 
-                landmarks = (landmarks * configs['img_size']).numpy()
-                landmarks_pred = landmarks_pred * configs['img_size']
+                    landmarks = (landmarks * configs['img_size']).numpy()
+                    landmarks_pred = landmarks_pred * configs['img_size']
 
-                PCK_acc += PCK(landmarks_pred, landmarks, 
-                                self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
+                    PCK_acc += PCK(landmarks_pred, landmarks, 
+                                    self.configs['img_size'], self.configs['img_size'], self.configs['num_joints'])
 
                 y_true.extend(labels.cpu().numpy())
                 y_pred.extend(prediction.cpu().numpy())
@@ -163,8 +172,9 @@ class Test:
         fig.tight_layout()
         plt.savefig(os.path.join("results", "{}.png".format(self.configs['model_name'])))
 
-        print("Accuracy of classification: {}, Accuracy of pose estimation: {}, Testing cost {} sec(s) per image"
+        print("Accuracy of classification: {}, F1 score: {}, PCK: {}, Testing cost {} sec(s) per image"
                 .format(class_acc / test_dataloader.__len__(), 
+                        f1 / test_dataloader.__len__(),
                         PCK_acc / test_dataloader.__len__(), 
                         (end_time - start_time) / test_set.__len__()))
 

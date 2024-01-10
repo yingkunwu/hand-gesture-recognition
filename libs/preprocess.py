@@ -32,9 +32,9 @@ class HandPreprocess:
         height, width, _ = img.shape
 
         x1, y1, w, h = int(bbox[0] * width), int(bbox[1] * height), int(bbox[2] * width), int(bbox[3] * height)
-        x2, y2 = x1 + w, y1 # top right corner
-        x3, y3 = x1 + w, y1 + h # bottom right corner
-        x4, y4 = x1, y1 + h # bottom left corner
+        x2, y2 = x1 + w, y1  # top right corner
+        x3, y3 = x1 + w, y1 + h  # bottom right corner
+        x4, y4 = x1, y1 + h  # bottom left corner
 
         landmark[:, 0] = landmark[:, 0] * width
         landmark[:, 1] = landmark[:, 1] * height
@@ -67,7 +67,7 @@ class HandPreprocess:
             x1, y1 = max(x1, 0), max(y1, 0)
             x3, y3 = min(x3, width), min(y3, height)
             w, h = x3 - x1, y3 - y1
-  
+
         if self.crop_FOA:
             new_img = None
             if self.resize_FOA:
@@ -100,7 +100,8 @@ class HandPreprocess:
     def hsv_(self, img, hgain=0.015, sgain=0.7, vgain=0.4):
         # HSV color-space augmentation
         if hgain or sgain or vgain:
-            r = np.random.uniform(-1, 1, 3) * [hgain, sgain, vgain] + 1  # random gains
+            # random gains
+            r = np.random.uniform(-1, 1, 3) * [hgain, sgain, vgain] + 1
             img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
             hue, sat, val = cv2.split(img)
 

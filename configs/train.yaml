@@ -1,7 +1,9 @@
-# dataset
-data_path: "data/hagrid_crop/train"
+# model
 num_joints: 21
 num_classes: 19
+
+# dataset
+data_path: "data/hagrid_crop/train"
 
 classes_dict:
   call: 0
@@ -24,10 +26,14 @@ classes_dict:
   two_up_inverted: 17
   no_gesture: 18
 
+batch_size: 32
+img_size: 256
+sigma: 3
+
 # data preprocess and augmentation
 preprocess:
   crop_FOA: False
   resize_FOA: False
   rotate: False
-  horizontal_flip: False
-  hsv: False
+  horizontal_flip: True
+  hsv: True

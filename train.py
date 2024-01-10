@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 import torch
 from torch.optim import SGD
-from torch.optim.lr_scheduler import LinearLR
+from torch.optim.lr_scheduler import MultiStepLR
 from sklearn.metrics import f1_score
 
 from libs.load import load_data
@@ -34,14 +34,14 @@ class Train:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if opt.model_type == 'resnet':
             self.model = PoseResNet(
-                resnet_size=int(opt.model_ver),
-                nof_joints=configs['num_joints'],
-                nof_classes=configs['num_classes']
+                num_layers=int(opt.model_ver),
+                num_joints=configs['num_joints'],
+                num_classes=configs['num_classes']
             )
         elif opt.model_type == 'resnext':
             self.model = ResNeXt(
                 resnext_size=int(opt.model_ver),
-                nof_classes=configs['num_classes']
+                num_classes=configs['num_classes']
             )
         else:
             raise NotImplementedError
@@ -61,13 +61,13 @@ class Train:
         print("Number of model parameters:", total_params)
 
         train_set, valid_set, train_dataloader, val_dataloader = load_data(
-            self.configs['data_path'], 
+            self.configs['data_path'],
             self.configs['classes_dict'],
-            self.opt.batch_size, 
-            self.opt.img_size, 
-            self.configs['num_joints'], 
-            self.opt.sigma, 
-            self.configs['preprocess'], 
+            self.opt.batch_size,
+            self.opt.img_size,
+            self.configs['num_joints'],
+            self.opt.sigma,
+            self.configs['preprocess'],
             "train"
         )
         print("The number of data in train set: ", train_set.__len__())
@@ -76,7 +76,11 @@ class Train:
         criterion = MultiTasksLoss()
 
         optimizer = SGD(self.model.parameters(), lr=self.opt.lr, momentum=0.9)
-        scheduler = LinearLR(optimizer, start_factor=1.0, end_factor=0.01, total_iters=self.opt.epochs)
+        scheduler = MultiStepLR(
+            optimizer,
+            [int(self.opt.epochs * 0.6), int(self.opt.epochs * 0.8)],
+            0.1
+        )
 
         log_dict = {
             "train_loss_list": [],
@@ -223,7 +227,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='poseresnet', help='name of the model to be trained')
     parser.add_argument('--model_type', type=str, default='resnet', choices=['resnet', 'resnext'], help='model type')
-    parser.add_argument('--model_ver', type=str, default='50', choices=['50', '101', '152'], help='model version')
+    parser.add_argument('--model_ver', type=str, default='50',
+                        choices=['18', '34', '50', '101', '152'], help='model version')
     parser.add_argument('--batch_size', type=int, default=32, help='batch size')
     parser.add_argument('--epochs', type=int, default=50, help='epochs')
     parser.add_argument('--lr', type=float, default=0.05, help='leanring rate')
