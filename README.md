@@ -2,7 +2,7 @@
 
 Final project for UMN CSCI 5525 Machine Learning course
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/result.gif" alt="dataset" width="500"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/result.gif" alt="demo" width="500"/>
 We only extract bounding boxes from the output of the hand detector. The classification task is performed by our model.
 
 ### Introduction
@@ -26,11 +26,9 @@ Comparing with original PoseResNet, our model have an additional 1x1 convolution
 
 ### Results
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/loss.png" alt="loss" height="300"/><img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/acc.png" alt="acc" height="300"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/accuracy.png" alt="accuracy" height="300"/><img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/f1score.png" alt="f1score" height="300"/>
 
-| Method | Classification Accuracy | PCK |
-| -------- | -------- | -------- |
-| PoseResNet (Multi-Task) | 0.996 | 0.905 |
+The above results indicate that our PoseResNet, utilizing a ResNet18 backbone, performs comparably to ResNext101. Notably, PoseResNet18 achieves this level of performance with 80% fewer parameters than ResNext101, highlighting the effectiveness of PoseResNet.
 
 
 ### Usage
