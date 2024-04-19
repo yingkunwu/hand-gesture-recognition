@@ -2,9 +2,9 @@ import torch
 from torch import nn
 
 
-class PoseDecoder(nn.Module):
+class MultiHeadDecoder(nn.Module):
     def __init__(self, num_joints, num_classes):
-        super(PoseDecoder, self).__init__()
+        super(MultiHeadDecoder, self).__init__()
 
         self.deconv1 = self._make_deconv_layer(
             2048, 256, kernel_size=4, stride=2, padding=1)

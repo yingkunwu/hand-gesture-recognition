@@ -1,241 +1,224 @@
 import os
-import random
-import yaml
-import json
-import argparse
-import numpy as np
-from tqdm import tqdm
 import torch
-from torch.optim import SGD
-from torch.optim.lr_scheduler import MultiStepLR
-from sklearn.metrics import f1_score
+import yaml
+import argparse
+from lightning.pytorch import LightningModule, Trainer, seed_everything
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
+from lightning.pytorch.loggers import TensorBoardLogger
 
-from libs.load import load_data
-from libs.loss import MultiTasksLoss
-from libs.utils import get_max_preds
-from libs.metrics import PCK, calc_class_accuracy
-from model.poseresnet import PoseResNet
-from model.resnext import ResNeXt
+from model.multitasknet import MultiTaskNet
+from libs.loss import MultiTaskLoss
+from libs.metrics import accuracy
+from libs.vis import save_debug_images
+from libs.load import HandDataModule
 
-
-def init():
-    random.seed(42)
-    np.random.seed(42)
-    torch.manual_seed(42)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+# Faster, but less precise
+torch.set_float32_matmul_precision("high")
+# sets seeds for numpy, torch and python.random.
+seed_everything(42, workers=True)
 
 
-class Train:
-    def __init__(self, opt, configs):
-        self.make_paths()
-        self.opt = opt
-        self.configs = configs
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        if opt.model_type == 'resnet':
-            self.model = PoseResNet(
-                num_layers=int(opt.model_ver),
-                num_joints=configs['num_joints'],
-                num_classes=configs['num_classes']
-            )
-        elif opt.model_type == 'resnext':
-            self.model = ResNeXt(
-                resnext_size=int(opt.model_ver),
-                num_classes=configs['num_classes']
-            )
-        else:
-            raise NotImplementedError
-        self.model = self.model.to(self.device)
+class MultiTaskModule(LightningModule):
+    def __init__(self, backbone, num_joints, num_classes, pretrained,
+                 batch_size, lr, lr_step, lr_factor, output_dir, model_name):
+        super().__init__()
 
-    def make_paths(self):
-        if not os.path.exists("weights/"):
-            os.mkdir("weights/")
-        if not os.path.exists("logs/"):
-            os.mkdir("logs/")
+        self.model = MultiTaskNet(
+            backbone, num_joints, num_classes)
 
-    def train(self):
-        init()
-        print("Using device:", self.device)
+        if len(pretrained) > 0:
+            print("Load pretrained weights from '{}'"
+                  .format(pretrained))
+            self.model.init_weights(pretrained)
 
-        total_params = sum(p.numel() for p in self.model.parameters())
-        print("Number of model parameters:", total_params)
+        self.criterion = MultiTaskLoss(use_target_weight=True)
 
-        train_set, valid_set, train_dataloader, val_dataloader = load_data(
-            self.configs['data_path'],
-            self.configs['classes_dict'],
-            self.opt.batch_size,
-            self.opt.img_size,
-            self.configs['num_joints'],
-            self.opt.sigma,
-            self.configs['preprocess'],
-            "train"
-        )
-        print("The number of data in train set: ", train_set.__len__())
-        print("The number of data in valid set: ", valid_set.__len__())
+        self.batch_size = batch_size
+        self.lr = lr
+        self.lr_step = lr_step
+        self.lr_factor = lr_factor
 
-        criterion = MultiTasksLoss()
+        self.save_hyperparameters()
 
-        optimizer = SGD(self.model.parameters(), lr=self.opt.lr, momentum=0.9)
-        scheduler = MultiStepLR(
-            optimizer,
-            [int(self.opt.epochs * 0.6), int(self.opt.epochs * 0.8)],
-            0.1
-        )
+        self.output_dir = os.path.join(output_dir, model_name)
+        os.makedirs(self.output_dir, exist_ok=True)
 
-        log_dict = {
-            "train_loss_list": [],
-            "train_class_acc_list": [],
-            "train_f1score_list": [],
-            "train_PCK_acc_list": [],
-            "val_loss_list": [],
-            "val_class_acc_list": [],
-            "val_f1score_list": [],
-            "val_PCK_acc_list": []
-        }
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
+            self.model.parameters(), self.lr)
 
-        best_f1score = 0
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, self.lr_step, self.lr_factor)
 
-        for epoch in range(self.opt.epochs):
-            train_loss, val_loss = 0, 0
-            train_class_acc, val_class_acc = 0, 0
-            train_f1score, val_f1score = 0, 0
-            train_PCK_acc, val_PCK_acc = 0, 0
+        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
 
-            # --------------------------
-            # Training Stage
-            # --------------------------
-            self.model.train()
-            for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(train_dataloader)):
-                images = images.to(self.device)
-                heatmaps = heatmaps.to(self.device)
-                labels = labels.to(self.device)
+    def forward(self, batch, batch_idx):
+        img, target, target_weight, meta = batch
 
-                optimizer.zero_grad()
+        output = self.model(img)
+        loss = self.criterion(output, target, target_weight)
 
-                heatmap_pred, label_pred = self.model(images)
+        _, avg_acc, cnt, pred = accuracy(output.detach().cpu().numpy(),
+                                         target.detach().cpu().numpy())
 
-                loss = criterion(heatmap_pred, label_pred, heatmaps, labels)
+        return loss, avg_acc, cnt, output, pred
 
-                loss.backward()
-                optimizer.step()
+    def training_step(self, batch, batch_idx):
+        loss, avg_acc, cnt, output, pred = self.forward(batch, batch_idx)
+        self.train_count += cnt
+        self.train_total_acc += avg_acc * cnt
 
-                train_loss += loss.item()
+        self.log_dict(
+            {
+                'train/loss': loss,
+                'train/acc': self.train_total_acc / self.train_count
+            },
+            logger=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size)
 
-                if label_pred is not None:
-                    prediction = torch.argmax(label_pred, dim=1)
-                    train_class_acc += calc_class_accuracy(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy())
-                    train_f1score += f1_score(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy(), average='macro')
+        return {"loss": loss, "output": output, "pred": pred}
 
-                if heatmap_pred is not None:
-                    landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
+    def validation_step(self, batch, batch_idx):
+        loss, avg_acc, cnt, output, pred = self.forward(batch, batch_idx)
+        self.val_count += cnt
+        self.val_total_acc += avg_acc * cnt
 
-                    landmarks = (landmarks * self.opt.img_size).numpy()
-                    landmarks_pred = landmarks_pred * self.opt.img_size
+        self.log_dict(
+            {
+                'val/loss': loss,
+                'val/acc': self.val_total_acc / self.val_count
+            },
+            logger=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size)
 
-                    train_PCK_acc += PCK(landmarks_pred, landmarks, 
-                                    self.opt.img_size, self.opt.img_size, self.configs['num_joints'])
+        return {"loss": loss, "output": output, "pred": pred}
 
-            scheduler.step()
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        return self.forward(batch, batch_idx)
 
-            # --------------------------
-            # Validation Stage
-            # --------------------------
-            self.model.eval()
-            with torch.no_grad():
-                for i, (images, heatmaps, labels, landmarks) in enumerate(tqdm(val_dataloader)):
-                    images = images.to(self.device)
-                    heatmaps = heatmaps.to(self.device)
-                    labels = labels.to(self.device)
+    def on_train_epoch_start(self):
+        self.train_count = 0
+        self.train_total_acc = 0
 
-                    heatmap_pred, label_pred = self.model(images)
+    def on_validation_epoch_start(self):
+        self.val_count = 0
+        self.val_total_acc = 0
 
-                    loss = criterion(heatmap_pred, label_pred, heatmaps, labels)
+    def on_train_batch_end(self, out, batch, batch_idx):
+        if batch_idx % 100 == 0:
+            img, target, target_weight, meta = batch
 
-                    val_loss += loss.item()
+            output, pred = out["output"], out["pred"]
+            prefix = '{}_{}'.format(
+                os.path.join(self.output_dir, 'train'), batch_idx)
+            save_debug_images(img, meta, target, pred*4, output, prefix)
 
-                    if label_pred is not None:
-                        prediction = torch.argmax(label_pred, dim=1)
-                        val_class_acc += calc_class_accuracy(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy())
-                        val_f1score += f1_score(prediction.detach().cpu().numpy(), labels.detach().cpu().numpy(), average='macro')
+    def on_validation_batch_end(self, out, batch, batch_idx):
+        if batch_idx % 100 == 0:
+            img, target, target_weight, meta = batch
 
-                    if heatmap_pred is not None:
-                        landmarks_pred, _ = get_max_preds(heatmap_pred.detach().cpu().numpy())
+            output, pred = out["output"], out["pred"]
+            prefix = '{}_{}'.format(
+                os.path.join(self.output_dir, 'val'), batch_idx)
+            save_debug_images(img, meta, target, pred*4, output, prefix)
 
-                        landmarks = (landmarks * self.opt.img_size).numpy()
-                        landmarks_pred = landmarks_pred * self.opt.img_size
 
-                        val_PCK_acc += PCK(landmarks_pred, landmarks, 
-                                        self.opt.img_size, self.opt.img_size, self.configs['num_joints'])
+def run(args, data_cfg):
+    model_name = "{}_{}x{}_{}".format(
+        args.backbone, args.img_size[0], args.img_size[1], args.suffix)
+    model_path = os.path.join(args.weight_dir, model_name)
 
-            # --------------------------
-            # Logging Stage
-            # --------------------------
-            print("Epoch: ", epoch + 1)
-            print("train_loss: {}, train_class_acc: {}, train_f1score: {}, train_PCK_acc: {}"
-                    .format(train_loss / train_dataloader.__len__(), 
-                            train_class_acc / train_dataloader.__len__(),
-                            train_f1score / train_dataloader.__len__(),
-                            train_PCK_acc / train_dataloader.__len__(),
-                    )
-            )
-            print("val_loss: {}, val_class_acc: {}, val_f1score: {}, val_PCK_acc: {}"
-                    .format(val_loss / val_dataloader.__len__(), 
-                            val_class_acc / val_dataloader.__len__(),
-                            val_f1score / val_dataloader.__len__(),
-                            val_PCK_acc / val_dataloader.__len__(),
-                    )
-            )
+    dm = HandDataModule(
+        data_cfg,
+        args.image_size,
+        args.batch_size,
+        args.sigma)
+    model = MultiTaskModule(
+        args.backbone,
+        data_cfg["num_joints"],
+        data_cfg["num_classes"],
+        args.pretrained,
+        args.batch_size,
+        args.lr, args.lr_step, args.lr_factor,
+        args.output_dir, model_name)
 
-            log_dict["train_loss_list"].append(train_loss / train_dataloader.__len__()) 
-            log_dict["train_class_acc_list"].append(train_class_acc / train_dataloader.__len__())
-            log_dict["train_f1score_list"].append(train_f1score / train_dataloader.__len__())
-            log_dict["train_PCK_acc_list"].append(train_PCK_acc / train_dataloader.__len__())
+    lr_monitor = LearningRateMonitor(logging_interval='epoch')
+    ckpt_cb = ModelCheckpoint(
+        dirpath=model_path,
+        filename="best",
+        monitor='val/acc',
+        mode='min',
+        save_top_k=1,
+        save_last=True,
+        save_weights_only=True)
+    callbacks = [lr_monitor, ckpt_cb]
 
-            log_dict["val_loss_list"].append(val_loss / val_dataloader.__len__())
-            log_dict["val_class_acc_list"].append(val_class_acc / val_dataloader.__len__())
-            log_dict["val_f1score_list"].append(val_f1score / val_dataloader.__len__())
-            log_dict["val_PCK_acc_list"].append(val_PCK_acc / val_dataloader.__len__())
+    logger = TensorBoardLogger(
+        save_dir=args.log_dir,
+        name=model_name)
 
-            # --------------------------------------
-            # Save the Model with the Best F1-Score
-            # --------------------------------------
-            if val_f1score > best_f1score:
-                best_f1score = val_f1score
+    trainer = Trainer(accelerator='gpu',
+                      devices=[args.device],
+                      precision=32,
+                      max_epochs=args.epochs,
+                      deterministic=True,
+                      num_sanity_val_steps=1,
+                      logger=logger,
+                      callbacks=callbacks)
 
-                torch.save(self.model.state_dict(), os.path.join("weights", self.opt.model_name + ".pth"))
-                print("Current best model is saved!")
-
-        # --------------------------
-        # Save Logs into .txt files
-        # --------------------------
-        logs_path = os.path.join("logs", self.opt.model_name)
-        if not os.path.exists(logs_path):
-            os.mkdir(logs_path)
-
-        with open(os.path.join(logs_path, "history.json"), "w") as outfile:
-            json.dump(log_dict, outfile, ensure_ascii=False, indent=4)
+    trainer.fit(model, dm)
 
 
 if __name__ == "__main__":
-    configs = None
-    with open("configs/train.yaml", "r") as stream:
-        try:
-            configs = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str, default='poseresnet', help='name of the model to be trained')
-    parser.add_argument('--model_type', type=str, default='resnet', choices=['resnet', 'resnext'], help='model type')
-    parser.add_argument('--model_ver', type=str, default='50',
-                        choices=['18', '34', '50', '101', '152'], help='model version')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-    parser.add_argument('--epochs', type=int, default=50, help='epochs')
-    parser.add_argument('--lr', type=float, default=0.05, help='leanring rate')
-    parser.add_argument('--img_size', type=int, default=256, help='image size')
-    parser.add_argument('--sigma', type=int, default=3, help='sigma of the gaussian distribution of the heatmap')
-    opt = parser.parse_args()
-    print(opt)
-    
-    t = Train(opt, configs)
-    t.train()
+    parser.add_argument('--data_confg', type=str,
+                        default='', help='path to the data config')
+    parser.add_argument('--suffix', type=str,
+                        default='', help='suffix of the model name')
+    parser.add_argument('--device', type=int,
+                        default=0, help='gpu device to be used')
+    parser.add_argument('--backbone', type=str,
+                        default='gelans',
+                        choices=['resnet18', 'resnet50', 'resnext50',
+                                 'gelans', 'gelanl'],
+                        help='backbone to be used')
+    parser.add_argument('--batch_size', type=int,
+                        default=32, help='batch size')
+    parser.add_argument('--epochs', type=int,
+                        default=50, help='epochs')
+    parser.add_argument('--lr', type=float,
+                        default=0.001, help='learning rate')
+    parser.add_argument('--lr_step', type=list,
+                        default=[30, 40], help='learning rate step')
+    parser.add_argument('--lr_factor', type=float,
+                        default=0.1, help='learning rate factor')
+    parser.add_argument('--image_size', type=list,
+                        default=[192, 192], help='image size')
+    parser.add_argument('--sigma', type=int,
+                        default=2,
+                        help='std of the gaussian distribution heatmap')
+    parser.add_argument('--pretrained', type=str,
+                        default='', help='path to the pretrained model')
+    parser.add_argument('--weight_dir', type=str,
+                        default='weights',
+                        help='directory to save the weights')
+    parser.add_argument('--log_dir', type=str,
+                        default='logs',
+                        help='directory to save the logs')
+    parser.add_argument('--num_workers', type=int,
+                        default=8, help='number of workers for dataloader')
+
+    args = parser.parse_args()
+    print(args)
+
+    with open(args.data_confg, "r") as stream:
+        try:
+            data_cfg = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            assert False, exc
+
+    run(args, data_cfg)

@@ -3,16 +3,16 @@ import torch
 from torch import nn
 from collections import OrderedDict
 
-from .encoder import ResNet
-from .decoder import PoseDecoder
+from .encoder.gelan import GELANNet
+from .decoder.multihead import MultiHeadDecoder
 
 
-class PoseResNet(nn.Module):
+class MultiTaskNet(nn.Module):
     def __init__(self, num_layers, num_joints, num_classes):
-        super(PoseResNet, self).__init__()
+        super(MultiTaskNet, self).__init__()
 
-        self.encoder = ResNet(num_layers)
-        self.decoder = PoseDecoder(num_joints, num_classes)
+        self.encoder = GELANNet("small")
+        self.decoder = MultiHeadDecoder(num_joints, num_classes)
 
     def forward(self, x):
         features = self.encoder(x)

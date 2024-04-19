@@ -1,0 +1,38 @@
+# data path
+path: data/hagrid_pose  # dataset root dir
+train: annotations/train  # train images (relative to 'path') 410,800 images
+val: annotations/val  # val images (relative to 'path') 54,000 images
+test: annotations/test # test images (relative to 'path') 90,000 images
+
+# data information
+num_joints: 21
+num_classes: 19
+
+names:
+  call: 0
+  dislike: 1
+  fist: 2
+  four: 3
+  like: 4
+  mute: 5
+  ok: 6
+  one: 7
+  palm: 8
+  peace: 9
+  peace_inverted: 10
+  rock: 11
+  stop: 12
+  stop_inverted: 13
+  three: 14
+  three2: 15
+  two_up: 16
+  two_up_inverted: 17
+  no_gesture: 18
+
+# data augmentations
+augments:
+  rot_factor: 20
+  scale_factor: 0.3
+  horizontal_flip: true
+  color_jittering: true
+
