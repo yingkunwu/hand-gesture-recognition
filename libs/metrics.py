@@ -28,7 +28,7 @@ def dist_acc(dists, thr=0.5):
         return -1
 
 
-def accuracy(output, target):
+def pose_accuracy(output, target):
     """
     Calculate accuracy according to PCK,
     but uses ground truth heatmap rather than x,y locations

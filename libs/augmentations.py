@@ -2,18 +2,13 @@ import cv2
 import numpy as np
 
 
-def fliplr(image, joints, joints_vis, width):
+def fliplr(image, joints, width):
     """Flip the image and joints horizontally.
     Args:
-        joints: [num_joints, 2 or 3]
-        joints_vis: [num_joints, 2 or 3]
+        image: input image
+        joints: [num_joints, 2]
         width: image width
-        matched_parts: pairs of joints to flip
     """
-    assert joints.shape[0] == joints_vis.shape[0], \
-        'joints and joints_vis should have the same number of joints, ' \
-        'current shape is joints={}, joints_vis={}'.format(
-            joints.shape, joints_vis.shape)
 
     # Flip horizontal
     image = image[:, ::-1, :]
@@ -21,14 +16,7 @@ def fliplr(image, joints, joints_vis, width):
     if joints.shape[0]:
         joints[:, 0] = width - joints[:, 0] - 1
 
-    # Change left-right parts
-    # for pair in matched_parts:
-    #     joints[pair[0], :], joints[pair[1], :] = \
-    #         joints[pair[1], :], joints[pair[0], :].copy()
-    #     joints_vis[pair[0], :], joints_vis[pair[1], :] = \
-    #         joints_vis[pair[1], :], joints_vis[pair[0], :].copy()
-
-    return image, joints, joints_vis
+    return image, joints
 
 
 def color_jitter(img, hgain=0.02, sgain=0.5, vgain=0.4):

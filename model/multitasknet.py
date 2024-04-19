@@ -36,3 +36,18 @@ class MultiTaskNet(nn.Module):
         else:
             raise ValueError("Pretrained model '{}' does not exist."
                              .format(pretrained))
+
+
+if __name__ == '__main__':
+    from thop import profile
+    from thop import clever_format
+
+    name = "gelans"
+    model = MultiTaskNet(name, 21, 19)
+    x = torch.randn(1, 3, 256, 256)
+    label, heatmap = model(x)
+    print(label.size(), heatmap.size())
+
+    flops, params = profile(model, inputs=(x,))
+    flops, params = clever_format([flops, params], "%.3f")
+    print(f"Model: {name}, FLOPs: {flops}, Params: {params}")

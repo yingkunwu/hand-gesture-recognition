@@ -7,7 +7,7 @@ class MultiHeadDecoder(nn.Module):
         super(MultiHeadDecoder, self).__init__()
 
         self.deconv1 = self._make_deconv_layer(
-            2048, 256, kernel_size=4, stride=2, padding=1)
+            512, 256, kernel_size=4, stride=2, padding=1)
         self.deconv2 = self._make_deconv_layer(
             512, 256, kernel_size=4, stride=2, padding=1)
         self.deconv3 = self._make_deconv_layer(
@@ -40,7 +40,7 @@ class MultiHeadDecoder(nn.Module):
         )
 
         self.classification_layer = nn.Sequential(
-            nn.Linear(3840, 400),
+            nn.Linear(1856, 400),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
             nn.Linear(400, num_classes)
@@ -115,7 +115,7 @@ class MultiHeadDecoder(nn.Module):
         y = torch.cat((features, h1, h2, h3, h4), dim=1)
         label = self.classification_layer(y)
 
-        return heatmap, label
+        return label, heatmap
 
     def init_weights(self):
         for m in self.deconv1.modules():

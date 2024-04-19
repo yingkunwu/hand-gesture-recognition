@@ -8,7 +8,7 @@ from libs.load import HandDataModule
 from libs.draw import draw_bones, draw_joints
 
 
-image_size = [256, 256]
+image_size = [192, 192]
 batch_size = 32
 sigma = 2
 num_workers = 8
@@ -32,13 +32,14 @@ def display_data(data_path):
     dm.setup()
     train_loader = dm.train_dataloader()
 
-    for _, (images, labels, heatmaps, weight, landmarks) in enumerate(tqdm(train_loader)):
+    for _, (images, labels, heatmaps, weight, meta) in enumerate(tqdm(train_loader)):
         images[:, 0] = images[:, 0] * 0.229 + 0.485
         images[:, 1] = images[:, 1] * 0.224 + 0.456
         images[:, 2] = images[:, 2] * 0.225 + 0.406
         images = images * 255.0
 
         print(labels)
+        landmarks = meta["joints"]
 
         # landmarks = landmarks * configs['img_size']
         heatmaps = F.interpolate(heatmaps, size=image_size, mode='bilinear', align_corners=True)

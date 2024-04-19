@@ -30,13 +30,11 @@ class JointsMSELoss(nn.Module):
         return loss / num_joints
 
 
-class MultiTaskLoss(nn.Module):
-    def __init__(self, use_target_weight):
-        super(MultiTaskLoss, self).__init__()
-        self.joints_loss = JointsMSELoss(use_target_weight)
-        self.class_loss = nn.CrossEntropyLoss()
+class ClassificationLoss(nn.Module):
+    def __init__(self):
+        super(ClassificationLoss, self).__init__()
+        self.criterion = nn.CrossEntropyLoss(reduction='mean')
 
-    def forward(self, heatmap_pred, label_pred, heatmap_target, label_target):
-        joints_loss = self.joints_loss(heatmap_pred, heatmap_target)
-        class_loss = self.class_loss(label_pred, label_target)
-        return joints_loss + class_loss * 0.002
+    def forward(self, output, target):
+        loss = self.criterion(output, target)
+        return loss

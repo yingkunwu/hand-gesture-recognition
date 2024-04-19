@@ -160,7 +160,7 @@ class HagridDataExtractor:
                         "landmark": joints.tolist()
                     }
 
-                if count > 100:
+                if count > 1000:
                     break
                 count += 1
 
@@ -182,4 +182,4 @@ if __name__ == "__main__":
     extractor = HagridDataExtractor(args.root_dir, args.output_dir)
     extractor.extract("annotations/train")
     extractor.extract("annotations/val")
-    extractor.extract("annotations/test")
+    # extractor.extract("annotations/test")

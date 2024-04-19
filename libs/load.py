@@ -59,7 +59,7 @@ class HagridDataset(torch.utils.data.Dataset):
         h, w = img.shape[:2]
 
         joints = landmark.copy()
-        joints_vis = np.ones((joints.shape[0], 1))
+        joints_vis = np.ones((self.num_joints, 1))
 
         if joints.shape[0]:
             joints[:, 0] = joints[:, 0] * w
@@ -84,7 +84,13 @@ class HagridDataset(torch.utils.data.Dataset):
         if joints.shape[0] == 0:
             joints = np.zeros((self.num_joints, 2))
 
-        return img, label, target, target_weight, joints
+        meta = {
+            'image_path': data["image_path"],
+            'joints': joints,
+            'joints_vis': joints_vis,
+        }
+
+        return img, label, target, target_weight, meta
 
     def __len__(self):
         return len(self.gt_db)
@@ -117,8 +123,7 @@ class HagridDataset(torch.utils.data.Dataset):
                 color_jitter(image)
 
             if self.horizontal_flip and random.random() <= 0.5:
-                image, joints, joints_vis = fliplr(
-                    image, joints, joints_vis, image.shape[1])
+                image, joints = fliplr(image, joints, image.shape[1])
                 c[0] = image.shape[1] - c[0] - 1
 
         trans = get_affine_transform(c, s, r, origin_size, self.image_size)
