@@ -66,10 +66,10 @@ class HagridDataset(torch.utils.data.Dataset):
             joints[:, 1] = joints[:, 1] * h
 
         c = np.array([w / 2, h / 2])
-        origin_size = max(h, w)
+        origin_size = max(h, w) * 0.3
 
         img, joints, joints_vis = self.preprocess(
-            img, joints, joints_vis, c, 0.8, 0, origin_size)
+            img, joints, joints_vis, c, 1, 0, origin_size)
 
         # convert images to torch.tensor and normalize it
         img = self.transform(img)
@@ -120,7 +120,7 @@ class HagridDataset(torch.utils.data.Dataset):
                 if random.random() <= 0.6 else 0
 
             if self.color_jittering and random.random() <= 0.5:
-                color_jitter(image)
+                image = color_jitter(image)
 
             if self.horizontal_flip and random.random() <= 0.5:
                 image, joints = fliplr(image, joints, image.shape[1])

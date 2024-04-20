@@ -137,7 +137,7 @@ class HagridDataExtractor:
                     original_size = max(w, h)
                     target_size = [original_size, original_size]
                     trans = get_affine_transform(
-                        c, 1.2, 0, original_size, target_size)
+                        c, 3, 0, original_size, target_size)
                     img_crop = cv2.warpAffine(
                         img,
                         trans,
@@ -160,7 +160,7 @@ class HagridDataExtractor:
                         "landmark": joints.tolist()
                     }
 
-                if count > 1000:
+                if count > 100:
                     break
                 count += 1
 

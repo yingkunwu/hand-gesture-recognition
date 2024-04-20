@@ -6,8 +6,9 @@ import math
 from .utils import get_max_preds
 
 
-def save_batch_image_with_joints(batch_image, batch_joints, batch_joints_vis,
-                                 file_name, nrow=8, padding=2):
+def save_batch_image_with_joints(batch_image, batch_label, batch_joints,
+                                 batch_joints_vis, file_name,
+                                 nrow=8, padding=2):
     '''
     batch_image: [batch_size, channel, height, width]
     batch_joints: [batch_size, num_joints, 3],
@@ -28,15 +29,20 @@ def save_batch_image_with_joints(batch_image, batch_joints, batch_joints_vis,
         for x in range(xmaps):
             if k >= nmaps:
                 break
+            label = batch_label[k].item()
             joints = batch_joints[k]
             joints_vis = batch_joints_vis[k]
 
             for joint, joint_vis in zip(joints, joints_vis):
-                joint[0] = x * width + padding + joint[0]
-                joint[1] = y * height + padding + joint[1]
+                cornerX = x * width + padding
+                cornerY = y * height + padding
+                joint[0] = cornerX + joint[0]
+                joint[1] = cornerY + joint[1]
                 if joint_vis[0]:
                     cv2.circle(ndarr, (int(joint[0]), int(joint[1])),
                                2, [255, 0, 0], 2)
+                cv2.putText(ndarr, str(label), (int(cornerX), int(cornerY+25)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
             k = k + 1
     cv2.imwrite(file_name, ndarr)
 
@@ -104,13 +110,14 @@ def save_batch_heatmaps(batch_image, batch_heatmaps, file_name,
     cv2.imwrite(file_name, grid_image)
 
 
-def save_debug_images(input, meta, target, joints_pred, output, prefix):
+def save_debug_images(input, pred, label,
+                      meta, target, joints_pred, output, prefix):
     save_batch_image_with_joints(
-        input, meta['joints'], meta['joints_vis'],
+        input, pred, meta['joints'], meta['joints_vis'],
         '{}_gt.jpg'.format(prefix)
     )
     save_batch_image_with_joints(
-        input, joints_pred.copy(), meta['joints_vis'],
+        input, label, joints_pred.copy(), meta['joints_vis'],
         '{}_pred.jpg'.format(prefix)
     )
     save_batch_heatmaps(

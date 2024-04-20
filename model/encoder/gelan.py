@@ -159,8 +159,8 @@ class GELANNet(nn.Module):
         self.cspelan2 = GELANBlock(256, 256, 256, 128, block, layers[1])
         self.down2 = Conv(256, 512, 3, 2)
         self.cspelan3 = GELANBlock(512, 512, 512, 256, block, layers[2])
-        self.down3 = Conv(512, 512, 3, 2)
-        self.cspelan4 = GELANBlock(512, 512, 512, 256, block, layers[3])
+        # self.down3 = Conv(512, 512, 3, 2)
+        # self.cspelan4 = GELANBlock(512, 512, 512, 256, block, layers[3])
 
     def forward(self, x):
         x = self.conv1(x)
@@ -170,8 +170,8 @@ class GELANNet(nn.Module):
         x = self.cspelan2(x)
         x = self.down2(x)
         x = self.cspelan3(x)
-        x = self.down3(x)
-        x = self.cspelan4(x)
+        # x = self.down3(x)
+        # x = self.cspelan4(x)
 
         return x
 

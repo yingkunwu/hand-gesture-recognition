@@ -4,7 +4,9 @@ from torch import nn
 from collections import OrderedDict
 
 from .encoder.gelan import GELANNet
+from .encoder.resnet import ResNet
 from .decoder.multihead import MultiHeadDecoder
+from .decoder.transformer import ViT
 
 
 class MultiTaskNet(nn.Module):
@@ -12,10 +14,21 @@ class MultiTaskNet(nn.Module):
         super(MultiTaskNet, self).__init__()
 
         self.encoder = GELANNet("small")
-        self.decoder = MultiHeadDecoder(num_joints, num_classes)
+        # self.encoder = ResNet(18)
+        # self.decoder = MultiHeadDecoder(num_joints, num_classes)
+        self.proj = nn.Conv2d(512, 256, 1, bias=False)
+        self.decoder = ViT(
+            num_classes=num_classes,
+            num_joints=num_joints,
+            feature_size=12,
+            dim=256, depth=4,
+            heads=8,
+            head_dim=256,
+            mlp_dim=512)
 
     def forward(self, x):
         features = self.encoder(x)
+        features = self.proj(features)
         heatmaps = self.decoder(features)
 
         return heatmaps
@@ -44,7 +57,7 @@ if __name__ == '__main__':
 
     name = "gelans"
     model = MultiTaskNet(name, 21, 19)
-    x = torch.randn(1, 3, 256, 256)
+    x = torch.randn(1, 3, 192, 192)
     label, heatmap = model(x)
     print(label.size(), heatmap.size())
 

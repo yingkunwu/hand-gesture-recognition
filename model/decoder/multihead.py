@@ -23,7 +23,8 @@ class MultiHeadDecoder(nn.Module):
                 out_channels=num_joints,
                 kernel_size=1,
                 stride=1,
-                padding=0),
+                padding=0,
+                bias=False),
             nn.BatchNorm2d(num_joints, momentum=0.1),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2, padding=1)

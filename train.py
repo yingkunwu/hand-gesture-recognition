@@ -76,10 +76,10 @@ class MultiTaskModule(LightningModule):
             "joints_loss": joints_loss.item(),
         }
 
-        return loss, cls_f1score, avg_acc, cnt, heatmap, pose
+        return loss, cls_f1score, pred, avg_acc, cnt, heatmap, pose
 
     def training_step(self, batch, batch_idx):
-        loss, cls_avg, avg_acc, cnt, heatmap, pose = \
+        loss, cls_f1score, pred, avg_acc, cnt, heatmap, pose = \
             self.forward(batch, batch_idx)
         self.train_count += cnt
         self.train_total_acc += avg_acc * cnt
@@ -87,7 +87,7 @@ class MultiTaskModule(LightningModule):
         log = {}
         for key, value in loss.items():
             log[f"train/{key}"] = value
-        log.update({'train/cls_f1score': cls_avg})
+        log.update({'train/cls_f1score': cls_f1score})
         log.update({'train/pose_acc': self.train_total_acc / self.train_count})
 
         self.log_dict(
@@ -98,10 +98,11 @@ class MultiTaskModule(LightningModule):
             prog_bar=True,
             batch_size=self.batch_size)
 
-        return {"loss": loss["total_loss"], "heatmap": heatmap, "pose": pose}
+        return {"loss": loss["total_loss"], "pred": pred,
+                "heatmap": heatmap, "pose": pose}
 
     def validation_step(self, batch, batch_idx):
-        loss, cls_avg, avg_acc, cnt, heatmap, pose = \
+        loss, cls_f1score, pred, avg_acc, cnt, heatmap, pose = \
             self.forward(batch, batch_idx)
         self.val_count += cnt
         self.val_total_acc += avg_acc * cnt
@@ -109,7 +110,7 @@ class MultiTaskModule(LightningModule):
         log = {}
         for key, value in loss.items():
             log[f"val/{key}"] = value
-        log.update({'val/cls_f1score': cls_avg})
+        log.update({'val/cls_f1score': cls_f1score})
         log.update({'val/pose_acc': self.val_total_acc / self.val_count})
 
         self.log_dict(
@@ -119,7 +120,8 @@ class MultiTaskModule(LightningModule):
             prog_bar=True,
             batch_size=self.batch_size)
 
-        return {"loss": loss["total_loss"], "heatmap": heatmap, "pose": pose}
+        return {"loss": loss["total_loss"], "pred": pred,
+                "heatmap": heatmap, "pose": pose}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         return self.forward(batch, batch_idx)
@@ -136,19 +138,21 @@ class MultiTaskModule(LightningModule):
         if batch_idx % 100 == 0:
             img, label, target, target_weight, meta = batch
 
-            heatmap, pose = out["heatmap"], out["pose"]
+            pred, heatmap, pose = out["pred"], out["heatmap"], out["pose"]
             prefix = '{}_{}'.format(
                 os.path.join(self.output_path, 'train'), batch_idx)
-            save_debug_images(img, meta, target, pose*4, heatmap, prefix)
+            save_debug_images(
+                img, pred, label, meta, target, pose*4, heatmap, prefix)
 
     def on_validation_batch_end(self, out, batch, batch_idx):
         if batch_idx % 100 == 0:
             img, label, target, target_weight, meta = batch
 
-            heatmap, pose = out["heatmap"], out["pose"]
+            pred, heatmap, pose = out["pred"], out["heatmap"], out["pose"]
             prefix = '{}_{}'.format(
                 os.path.join(self.output_path, 'val'), batch_idx)
-            save_debug_images(img, meta, target, pose*4, heatmap, prefix)
+            save_debug_images(
+                img, pred, label, meta, target, pose*4, heatmap, prefix)
 
 
 def run(args, data_cfg):
