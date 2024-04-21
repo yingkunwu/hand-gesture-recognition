@@ -1,40 +1,4 @@
 import numpy as np
-import torch.nn.functional as F
-
-
-def pad_to_square(img, pad_value):
-    c, h, w = img.shape
-    dim_diff = np.abs(h - w)
-    # (upper / left) padding and (lower / right) padding
-    pad1, pad2 = dim_diff // 2, dim_diff - dim_diff // 2
-    # Determine padding
-    pad = (0, 0, pad1, pad2) if h <= w else (pad1, pad2, 0, 0)
-    # Add padding
-    img = F.pad(img, pad, "constant", value=pad_value)
-
-    return img, pad
-
-
-def rescale_boxes(boxes, current_dim, original_shape):
-    """ Rescales bounding boxes to the original shape """
-    orig_h, orig_w = original_shape
-    # The amount of padding that was added
-    pad_x = max(orig_h - orig_w, 0) * (current_dim / max(original_shape))
-    pad_y = max(orig_w - orig_h, 0) * (current_dim / max(original_shape))
-    # Image height and width after padding is removed
-    unpad_h = current_dim - pad_y
-    unpad_w = current_dim - pad_x
-    # Rescale bounding boxes to dimension of original image
-    x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
-    x1 = ((x1 - pad_x // 2) / unpad_w) * orig_w
-    y1 = ((y1 - pad_y // 2) / unpad_h) * orig_h
-    x2 = ((x2 - pad_x // 2) / unpad_w) * orig_w
-    y2 = ((y2 - pad_y // 2) / unpad_h) * orig_h
-    boxes[:, 0] = min(max(0, x1), orig_w)
-    boxes[:, 1] = min(max(0, y1), orig_h)
-    boxes[:, 2] = min(max(0, x2), orig_w)
-    boxes[:, 3] = min(max(0, y2), orig_h)
-    return boxes.astype(np.int32)
 
 
 def get_max_preds(batch_heatmaps):

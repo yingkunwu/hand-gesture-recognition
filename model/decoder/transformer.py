@@ -97,11 +97,6 @@ class Attention(nn.Module):
 
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
 
-        # prevent image features from querying the class token
-        mask = torch.zeros_like(dots, dtype=torch.bool)
-        mask[:, :, 1:, 0] = 1
-        dots.masked_fill_(mask, float('-inf'))
-
         attn = torch.softmax(dots, dim=-1)
 
         out = torch.matmul(attn, v)
