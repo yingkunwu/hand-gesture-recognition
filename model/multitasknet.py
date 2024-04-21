@@ -18,8 +18,7 @@ class MultiTaskNet(nn.Module):
             dim=256, depth=4,
             heads=8,
             head_dim=256,
-            mlp_dim=256,
-            dropout=0.1)
+            mlp_dim=512)
 
     def forward(self, x):
         features = self.encoder(x)
@@ -34,9 +33,9 @@ if __name__ == '__main__':
     from thop import clever_format
 
     name = "gelans"
-    model = MultiTaskNet(name, 21, 19)
+    model = MultiTaskNet(21, 19, 12)
     x = torch.randn(1, 3, 192, 192)
-    label, heatmap = model(x)
+    label, heatmap, _ = model(x)
     print(label.size(), heatmap.size())
 
     flops, params = profile(model, inputs=(x,))

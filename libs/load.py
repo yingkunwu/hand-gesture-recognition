@@ -37,7 +37,8 @@ class HagridDataset(torch.utils.data.Dataset):
         self.num_joints = num_joints
 
         self.scale_factor = augments.get("scale_factor", 0)
-        self.rot_factor = augments.get("rot_factor", 0)
+        self.rotate_factor = augments.get("rotate_factor", 0)
+        self.translate_factor = augments.get("translate_factor", 0)
         self.horizontal_flip = augments.get("horizontal_flip", False)
         self.color_jittering = augments.get("color_jittering", False)
         self.image_set = image_set
@@ -114,10 +115,15 @@ class HagridDataset(torch.utils.data.Dataset):
         """
         if self.image_set == 'train':
             sf = self.scale_factor
-            rf = self.rot_factor
+            rf = self.rotate_factor
+            tf = self.translate_factor
             s = s * np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
             r = np.clip(np.random.randn() * rf, -rf * 2, rf * 2) \
                 if random.random() <= 0.6 else 0
+            if random.random() <= 0.5:
+                h, w, _ = image.shape
+                c[0] += w * np.clip(np.random.randn() * tf, -tf * 2, tf * 2)
+                c[1] += h * np.clip(np.random.randn() * tf, -tf * 2, tf * 2)
 
             if self.color_jittering and random.random() <= 0.5:
                 image = color_jitter(image)
