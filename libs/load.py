@@ -66,7 +66,7 @@ class HagridDataset(torch.utils.data.Dataset):
             joints[:, 1] = joints[:, 1] * h
 
         c = np.array([w / 2, h / 2])
-        origin_size = max(h, w) * 0.3
+        origin_size = max(h, w) * 0.35
 
         img, joints, joints_vis = self.preprocess(
             img, joints, joints_vis, c, 1, 0, origin_size)
@@ -262,6 +262,15 @@ class HandDataModule(LightningDataModule):
             self.augments,
             "val")
 
+        self.test_dataset = self.dataset(
+            self.test_data_path,
+            self.names,
+            self.image_size,
+            self.num_joints,
+            self.sigma,
+            self.augments,
+            "test")
+
     def train_dataloader(self):
         return torch.utils.data.DataLoader(
             self.train_dataset,
@@ -274,6 +283,15 @@ class HandDataModule(LightningDataModule):
     def val_dataloader(self):
         return torch.utils.data.DataLoader(
             self.valid_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=True
+        )
+
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(
+            self.test_dataset,
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,

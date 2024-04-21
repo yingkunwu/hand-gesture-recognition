@@ -72,7 +72,7 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads, head_dim, dropout=0.):
+    def __init__(self, dim, heads, head_dim):
         super().__init__()
         inner_dim = head_dim * heads
         project_out = not (heads == 1 and head_dim == dim)
@@ -82,15 +82,11 @@ class Attention(nn.Module):
 
         self.norm = nn.LayerNorm(dim)
 
-        self.attend = nn.Softmax(dim=-1)
-        self.dropout = nn.Dropout(dropout)
-
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
-
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
-            nn.Dropout(dropout)
-        ) if project_out else nn.Identity()
+        if project_out:
+            self.to_out = nn.Linear(inner_dim, dim, bias=False)
+        else:
+            self.to_out = nn.Identity()
 
     def forward(self, x):
         x = self.norm(x)
@@ -101,12 +97,18 @@ class Attention(nn.Module):
 
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
 
-        attn = self.attend(dots)
-        attn = self.dropout(attn)
+        # prevent image features from querying the class token
+        mask = torch.zeros_like(dots, dtype=torch.bool)
+        mask[:, :, 1:, 0] = 1
+        dots.masked_fill_(mask, float('-inf'))
+
+        attn = torch.softmax(dots, dim=-1)
 
         out = torch.matmul(attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
+        out = self.to_out(out)
+
+        return out, attn
 
 
 class Transformer(nn.Module):
@@ -115,16 +117,17 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                Attention(dim, heads, head_dim, dropout),
+                Attention(dim, heads, head_dim),
                 FeedForward(dim, mlp_dim, dropout=dropout)
             ]))
 
     def forward(self, x):
         for attn, ff in self.layers:
-            x = attn(x) + x
+            message, attnmap = attn(x)
+            x = message + x
             x = ff(x) + x
 
-        return x
+        return x, attnmap
 
 
 class ViT(nn.Module):
@@ -159,18 +162,19 @@ class ViT(nn.Module):
         x = rearrange(x, 'b c h w -> b (h w) c')
         x = self.pos_embedding(x)
 
-        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
-        x = torch.cat((cls_tokens, x), dim=1)
+        cls_token = repeat(self.cls_token, '() n d -> b n d', b=b)
 
-        x = self.transformer(x)
+        x = torch.cat([cls_token, x], dim=1)
+        x, attnmap = self.transformer(x)
 
-        cls_feat = x[:, 0]
+        cls_feat, hmap_feat = x[:, 0], x[:, 1:]
+
         cls_out = self.mlp_head(cls_feat)
 
-        hmap_feat = rearrange(x[:, 1:], 'b (h w) c -> b c h w', h=h, w=w)
+        hmap_feat = rearrange(hmap_feat, 'b (h w) c -> b c h w', h=h, w=w)
 
         hmap_feat = F.interpolate(hmap_feat, scale_factor=(4, 4),
                                   mode='bilinear', align_corners=True)
         hmap_out = self.simple_decoder(hmap_feat)
 
-        return cls_out, hmap_out
+        return cls_out, hmap_out, attnmap

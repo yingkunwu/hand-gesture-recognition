@@ -19,7 +19,7 @@ def fliplr(image, joints, width):
     return image, joints
 
 
-def color_jitter(img, hgain=0.02, sgain=0.7, vgain=0.4):
+def color_jitter(img, hgain=0.015, sgain=0.7, vgain=0.4):
     """HSV color-space augmentation.
     Args:
         img: input image

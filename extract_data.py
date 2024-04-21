@@ -110,7 +110,6 @@ class HagridDataExtractor:
             # of the hands and save the label and landmark to new annotations
             new_annots = {}
 
-            count = 0
             for image_id, annots in tqdm(data.items()):
                 img = cv2.imread(
                     os.path.join(self.root_dir, name, image_id + ".jpg"))
@@ -160,10 +159,6 @@ class HagridDataExtractor:
                         "landmark": joints.tolist()
                     }
 
-                if count > 100:
-                    break
-                count += 1
-
             # save new annotations to .json file
             with open(os.path.join(
                     annots_save_path, name + ".json"), "w") as f:
@@ -175,11 +170,11 @@ if __name__ == "__main__":
     parser.add_argument('--root_dir', type=str,
                         default='', help='root directory of data')
     parser.add_argument('--output_dir', type=str,
-                        default='data/hagrid_pose', help='output directory')
+                        default='data/hagrid_small', help='output directory')
     args = parser.parse_args()
     print(args)
 
     extractor = HagridDataExtractor(args.root_dir, args.output_dir)
-    extractor.extract("annotations/train")
+    # extractor.extract("annotations/train")
     extractor.extract("annotations/val")
-    # extractor.extract("annotations/test")
+    extractor.extract("annotations/test")

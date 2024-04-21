@@ -2,6 +2,9 @@ import numpy as np
 import torchvision
 import cv2
 import math
+import matplotlib.pyplot as plt
+from einops import rearrange
+import torch.nn.functional as F
 
 from .utils import get_max_preds
 
@@ -110,19 +113,93 @@ def save_batch_heatmaps(batch_image, batch_heatmaps, file_name,
     cv2.imwrite(file_name, grid_image)
 
 
-def save_debug_images(input, pred, label,
-                      meta, target, joints_pred, output, prefix):
+def save_batch_attention_map(batch_image, attn_map, file_name, normalize=True):
+
+    # for now we assume the input image is square
+    image_size = batch_image.size(2)
+    feat_size = image_size // 16
+
+    # visualize attention from the class token
+    attn_map = attn_map.mean(dim=1)
+    attn_map = rearrange(attn_map[:, 0, 1:], 'b (h w) -> b h w',
+                         h=feat_size, w=feat_size)
+
+    if normalize:
+        batch_image = batch_image.clone()
+        minval = float(batch_image.min())
+        maxval = float(batch_image.max())
+
+        batch_image.add_(-minval).div_(maxval - minval + 1e-5)
+
+    nrow = 8
+    nmaps = batch_image.size(0)
+    xmaps = min(nrow, nmaps)
+    ymaps = int(math.ceil(float(nmaps) / xmaps))
+
+    fig, axs = plt.subplots(ymaps, xmaps, figsize=(30, 15))
+    fig.subplots_adjust(
+        bottom=0.07, right=0.97, top=0.98, left=0.03,
+        wspace=0.00008, hspace=0.02,
+    )
+
+    k = 0
+    for y in range(ymaps):
+        for x in range(xmaps):
+            if k >= nmaps:
+                break
+            image = batch_image[k].mul(255).clamp(0, 255).byte()
+            image = image.permute(1, 2, 0).cpu().numpy()
+            resized_image = cv2.resize(
+                image.copy(), (image.shape[1]//4, image.shape[0]//4))
+            resized_image = cv2.cvtColor(resized_image, cv2.COLOR_RGB2BGR)
+
+            axs[y][x].imshow(resized_image)
+
+            image_vis = resized_image.copy()
+
+            attn_map_at_class = F.interpolate(
+                attn_map[None, None, k],
+                scale_factor=4,
+                mode="bilinear")
+            attn_map_at_class = \
+                attn_map_at_class.squeeze().detach().cpu().numpy()
+
+            # normalize the attention map
+            attn_map_at_class = (
+                (attn_map_at_class - np.min(attn_map_at_class))
+                / (np.max(attn_map_at_class) - np.min(attn_map_at_class))
+            )
+
+            axs[y][x].imshow(image_vis)
+            im = axs[y][x].imshow(
+                attn_map_at_class, cmap="nipy_spectral", alpha=0.5)
+
+            k += 1
+
+    cax = plt.axes([0.975, 0.08, 0.005, 0.90])
+    cb = fig.colorbar(im, cax=cax)
+    cb.set_ticks([0.0, 0.5, 1])
+    cb.ax.tick_params(labelsize=20)
+    plt.savefig(file_name)
+    plt.close()
+
+
+def save_debug_images(input, prefix, pred_label, label,
+                      pred_joints, heatmap, meta, target, attnmap):
     save_batch_image_with_joints(
-        input, pred, meta['joints'], meta['joints_vis'],
+        input, pred_label, meta['joints'], meta['joints_vis'],
         '{}_gt.jpg'.format(prefix)
     )
     save_batch_image_with_joints(
-        input, label, joints_pred.copy(), meta['joints_vis'],
+        input, label, pred_joints.copy(), meta['joints_vis'],
         '{}_pred.jpg'.format(prefix)
     )
     save_batch_heatmaps(
         input, target, '{}_hm_gt.jpg'.format(prefix)
     )
     save_batch_heatmaps(
-        input, output, '{}_hm_pred.jpg'.format(prefix)
+        input, heatmap, '{}_hm_pred.jpg'.format(prefix)
     )
+
+    if "val" in prefix and attnmap is not None:
+        save_batch_attention_map(input, attnmap, '{}_attn.jpg'.format(prefix))
