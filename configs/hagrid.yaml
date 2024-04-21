@@ -1,5 +1,5 @@
 # data path
-path: data/hagrid_pose  # dataset root dir
+path: data/hagrid_small  # dataset root dir
 train: annotations/train  # train images (relative to 'path') 410,800 images
 val: annotations/val  # val images (relative to 'path') 54,000 images
 test: annotations/test # test images (relative to 'path') 90,000 images

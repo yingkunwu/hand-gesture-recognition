@@ -175,6 +175,6 @@ if __name__ == "__main__":
     print(args)
 
     extractor = HagridDataExtractor(args.root_dir, args.output_dir)
-    # extractor.extract("annotations/train")
+    extractor.extract("annotations/train")
     extractor.extract("annotations/val")
     extractor.extract("annotations/test")
