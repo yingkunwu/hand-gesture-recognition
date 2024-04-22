@@ -32,7 +32,8 @@ def display_data(data_path):
     dm.setup()
     train_loader = dm.train_dataloader()
 
-    for _, (images, labels, heatmaps, weight, meta) in enumerate(tqdm(train_loader)):
+    for _, (images, labels, heatmaps, weight, meta) in \
+            enumerate(tqdm(train_loader)):
         images[:, 0] = images[:, 0] * 0.229 + 0.485
         images[:, 1] = images[:, 1] * 0.224 + 0.456
         images[:, 2] = images[:, 2] * 0.225 + 0.406
@@ -42,7 +43,8 @@ def display_data(data_path):
         landmarks = meta["joints"]
 
         # landmarks = landmarks * configs['img_size']
-        heatmaps = F.interpolate(heatmaps, size=image_size, mode='bilinear', align_corners=True)
+        heatmaps = F.interpolate(
+            heatmaps, size=image_size, mode='bilinear', align_corners=True)
 
         for j in range(batch_size):
             img = images[j].numpy().transpose(1, 2, 0).astype(np.uint8)
@@ -60,7 +62,10 @@ def display_data(data_path):
             for i in range(configs['num_joints']):
                 joint = heatmap[:, :, i]
 
-                joint = cv2.normalize(joint, joint, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+                joint = cv2.normalize(joint, joint,
+                                      alpha=0, beta=255,
+                                      norm_type=cv2.NORM_MINMAX,
+                                      dtype=cv2.CV_8U)
                 joint = cv2.applyColorMap(joint, cv2.COLORMAP_JET)
 
                 display = img * 0.8 + joint * 0.2
