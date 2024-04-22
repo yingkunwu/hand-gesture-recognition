@@ -175,11 +175,11 @@ class MultiTaskModule(LightningModule):
                 pred_joints*4, heatmap, meta, target, attnmap)
 
     def on_test_epoch_end(self):
-        cls_f1score = f1_score(self.y_true, self.y_pred, average='macro')
+        cls_f1score = f1_score(self.y_pred, self.y_true, average='macro')
         print("Test F1 Score: {:.4f}".format(cls_f1score))
 
         # generate covariance matrix of predicted classes and ground truths
-        cm = confusion_matrix(self.y_true, self.y_pred)
+        cm = confusion_matrix(self.y_pred, self.y_true)
         cmd = ConfusionMatrixDisplay(confusion_matrix=cm,
                                      display_labels=self.names.keys())
         fig, ax = plt.subplots(figsize=(10, 10))

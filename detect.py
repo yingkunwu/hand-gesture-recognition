@@ -7,9 +7,7 @@ import torch
 import numpy as np
 import onnxruntime as ort
 import torchvision.transforms as transforms
-from collections import OrderedDict
 
-from model.multitasknet import MultiTaskNet
 from libs.utils import get_max_preds
 from libs.draw import draw_bones, draw_joints
 from libs.transforms import get_affine_transform
@@ -53,8 +51,6 @@ class Detect:
         self.device = torch.device(
             'cuda' if torch.cuda.is_available() else 'cpu')
 
-        num_joints = kwargs.get('num_joints')
-        num_classes = kwargs.get('num_classes')
         cls_weight = kwargs.get('cls_weight')
         det_weight = kwargs.get('det_weight')
         self.data_path = kwargs.get('data_path')
@@ -66,11 +62,10 @@ class Detect:
         self.class_names = {v: k for k, v in class_names.items()}
 
         # load hand gesture classifier
-        self.classifier = self.load_classifier(
-            num_joints, num_classes, self.cls_img_size[0], cls_weight)
+        self.classifier = self.load_onnx_model(cls_weight)
 
         # load hand detector
-        self.session = self.load_detector(det_weight)
+        self.detector = self.load_onnx_model(det_weight)
 
         self.transform = transforms.Compose([
             transforms.ToTensor(),
@@ -78,28 +73,7 @@ class Detect:
                 mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
 
-    def load_classifier(self, num_joints, num_classes, cls_img_size,
-                        weight_path):
-        classifier = MultiTaskNet(
-            num_joints, num_classes, cls_img_size // 16)
-        classifier = classifier.to(self.device)
-
-        if not os.path.exists(weight_path):
-            assert False, "Model is not exist in {}".format(weight_path)
-
-        # load pytorch lightning model
-        checkpoint = torch.load(
-            weight_path, map_location=self.device)["state_dict"]
-
-        state_dict = OrderedDict()
-        for key in checkpoint.keys():
-            state_dict[key.replace("model.", "")] = checkpoint[key]
-        classifier.load_state_dict(state_dict, strict=True)
-        classifier.eval()
-
-        return classifier
-
-    def load_detector(self, weight_path):
+    def load_onnx_model(self, weight_path):
         if not os.path.exists(weight_path):
             assert False, "Model is not exist in {}".format(weight_path)
 
@@ -136,16 +110,27 @@ class Detect:
         # cv2.imshow("hand", img)
         # cv2.waitKey(0)
 
-        return self.transform(img)
+        mean = np.array([0.485, 0.456, 0.406])
+        std = np.array([0.229, 0.224, 0.225])
+        img = (img - mean) / std
+
+        img = img.transpose((2, 0, 1))
+        img = np.expand_dims(img, 0)
+        img = np.ascontiguousarray(img)
+
+        im = img.astype(np.float32)
+        im /= 255
+
+        return im
 
     def inference(self, frame):
         img, ratio, dwdh = self.process_image_for_detection(frame)
 
-        outname = [i.name for i in self.session.get_outputs()]
-        inname = [i.name for i in self.session.get_inputs()]
+        outname = [i.name for i in self.detector.get_outputs()]
+        inname = [i.name for i in self.detector.get_inputs()]
         inp = {inname[0]: img}
 
-        outputs = self.session.run(outname, inp)[0]
+        outputs = self.detector.run(outname, inp)[0]
 
         if len(outputs):
             _, x0, y0, x1, y1, _, score = outputs[0]
@@ -162,15 +147,14 @@ class Detect:
             if score > 0.2:
                 hand = self.process_image_for_classification(frame, box)
 
-                with torch.no_grad():
-                    hand = hand.to(self.device)
-                    label_pred, heatmap_pred, _ = \
-                        self.classifier(hand.unsqueeze(0))
+                inname = [i.name for i in self.classifier.get_inputs()]
+                inp = {inname[0]: hand}
+                label_pred, heatmap_pred = self.classifier.run(None, inp)
 
                 h, w = heatmap_pred.shape[-2:]
 
-                pred_label = torch.argmax(label_pred[0].cpu()).item()
-                landmarks_pred, _ = get_max_preds(heatmap_pred.cpu().numpy())
+                pred_label = np.argmax(label_pred[0])
+                landmarks_pred, _ = get_max_preds(heatmap_pred)
                 landmarks_pred = landmarks_pred.squeeze(0)
                 landmarks_pred[:, 0] = \
                     landmarks_pred[:, 0] / w * box_width + corner[0]
@@ -212,7 +196,7 @@ class Detect:
                 frame = self.inference(frame)
                 video_writer.write(frame)
                 cv2.imshow("frame", frame)
-                if cv2.waitKey(100) & 0xFF == ord('q'):
+                if cv2.waitKey(10) & 0xFF == ord('q'):
                     break
             cap.release()
         else:
@@ -224,7 +208,7 @@ class Detect:
                 frame = self.inference(frame)
                 video_writer.write(frame)
                 cv2.imshow("frame", frame)
-                if cv2.waitKey(100) & 0xFF == ord('q'):
+                if cv2.waitKey(10) & 0xFF == ord('q'):
                     break
 
         cv2.destroyAllWindows()
