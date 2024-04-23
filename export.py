@@ -81,7 +81,7 @@ if __name__ == "__main__":
     print("Model is successfully converted to ONNX format at {}"
           .format(savepath))
 
-    # Test the model using training data
+    # Test the model using testing data
     print("Testing the model using testing data...")
     dm = HandDataModule(
         data_cfg=data_cfg,

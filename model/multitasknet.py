@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from .encoder.gelan import GELANNet
-from .decoder.transformer import ViT
+from .gelan import GELANNet
+from .transformer import ViT
 
 
 class MultiTaskNet(nn.Module):

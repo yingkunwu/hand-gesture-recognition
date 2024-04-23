@@ -196,7 +196,7 @@ class Detect:
                 frame = self.inference(frame)
                 video_writer.write(frame)
                 cv2.imshow("frame", frame)
-                if cv2.waitKey(10) & 0xFF == ord('q'):
+                if cv2.waitKey(50) & 0xFF == ord('q'):
                     break
             cap.release()
         else:
@@ -208,7 +208,7 @@ class Detect:
                 frame = self.inference(frame)
                 video_writer.write(frame)
                 cv2.imshow("frame", frame)
-                if cv2.waitKey(10) & 0xFF == ord('q'):
+                if cv2.waitKey(50) & 0xFF == ord('q'):
                     break
 
         cv2.destroyAllWindows()
