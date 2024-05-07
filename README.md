@@ -49,9 +49,9 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
     To reduce training time and save CPU resources, we crop the hand region first from the original data:
     ```
     python extract_data.py --root_dir <DOWNLOADED_HAGRID_DATA>
-    ```
+    ```bash
     (Optional) Run display_data.py to check if data are loaded correctly.
-    ```
+    ```bash
     python display_data.py
     ```
 
