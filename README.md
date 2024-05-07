@@ -29,12 +29,12 @@ This result is tested on the HaGRID test data.
 1. **Environment** </br>
 
     Build Docker environment
-    ```
+    ```bash
     docker build -t hand-gesture:latest docker/
     ```
     
     Run container
-    ```
+    ```bash
     docker run -it --rm --gpus all --ipc=host --ulimit memlock=-1 --network="host" \
         -e DISPLAY=$DISPLAY \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
@@ -56,7 +56,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
     ```
 
 2. **Train** </br>
-    ```
+    ```bash
     python train.py \
         --data_config configs/hagrid.yaml \
         --suffix best \
@@ -70,7 +70,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
 
 3. **Export** </br>
     Export PyTorch model to ONNX
-    ```
+    ```bash
     python export.py \
         --data_config configs/hagrid.yaml \
         --image_size 192 192
@@ -80,7 +80,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
     
 4. **Inference** </br>
     For inference, we use YOLOv7-tiny to detect the hand region from the whole image. The [detector](https://drive.google.com/file/d/16HTdppn7gvbuPTLh7DZn01vbNU-E_Xvu/view?usp=sharing) is trained on data collected by the Interactive Robotics and Vision Laboratory at the University of Minnesota. After extracting hand regions from images, it will be classified by the multi-tasking model. The path of the inference data should be either a video file or a folder containing image files.
-    ```
+    ```bash
     python detect.py \
         --data_config configs/hagrid.yaml \
         --cls_weight gesture-classifier.onnx \
