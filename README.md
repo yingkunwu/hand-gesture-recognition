@@ -1,8 +1,8 @@
 # hand-gesture-recognition
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/demo.gif" alt="demo" width="500"/>
-
 This model is utilized in the hand gesture recognition system within the MeCO robot at the University of Minnesota's Interactive Robotics and Vision Laboratory.
+
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/demo.gif" alt="demo" width="500"/>
 
 ### Introduction
 
@@ -17,10 +17,9 @@ Our multitasking network leverages enriched features to attain high-performance 
 
 We trained our model on the large-scale hand gesture dataset: [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid). We include the no_gesture label in the total class. Therefore we have 19 classes in total.
 
-
 ### Results
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/confusion_matrix.png" alt="confusion_matrix" height="300"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/confusion_matrix.png" alt="confusion_matrix" height="600"/>
 
 This result is tested on the test data from HaGRID.
 
