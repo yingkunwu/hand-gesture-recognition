@@ -90,22 +90,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
 
 ### References
 
-**HaGRID - HAnd Gesture Recognition Image Dataset**
-```
-@article{hagrid,
-    title={HaGRID - HAnd Gesture Recognition Image Dataset},
-    author={Kapitanov, Alexander and Makhlyarchuk, Andrey and Kvanchiani, Karina},
-    journal={arXiv preprint arXiv:2206.08219},
-    year={2022}
-}
-```
-
-**Simple Baselines for Human Pose Estimation and Tracking**
-```
-@inproceedings{xiao2018simple,
-    author={Xiao, Bin and Wu, Haiping and Wei, Yichen},
-    title={Simple Baselines for Human Pose Estimation and Tracking},
-    booktitle = {European Conference on Computer Vision (ECCV)},
-    year = {2018}
-}
-```
+- *Y. Xu, J. Zhang, Q. Zhang, and D. Tao*, **Vitpose: Simple vision transformer baselines for human pose estimation**, arXiv preprint arXiv:2204.12484, 2022.
+- *A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly, J. Uszkoreit, and N. Houlsby*, **An image is worth 16x16 words: Transformers for image recognition at scale**, ICLR, 2021.
+- *A. Kapitanov, K. Kvanchiani, A. Nagaev, R. Kraynov, and A. Makhliarchuk*, **HaGRID - HAnd Gesture Recognition Image Dataset**, in Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision (WACV), pp. 4572–4581, January 2024.
+- *B. Xiao, H. Wu, and Y. Wei*, **Simple Baselines for Human Pose Estimation and Tracking**, in European Conference on Computer Vision (ECCV), 2018.
