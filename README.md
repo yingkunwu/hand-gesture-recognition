@@ -1,6 +1,6 @@
 # hand-gesture-recognition
 
-This model is utilized in the hand gesture recognition system within the MeCO robot at the University of Minnesota's Interactive Robotics and Vision Laboratory.
+This model is utilized in the hand gesture recognition system within the MeCO robot at the Interactive Robotics and Vision Laboratory, University of Minnesota.
 
 <img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/demo.gif" alt="demo" width="500"/>
 
@@ -10,18 +10,18 @@ This model is utilized in the hand gesture recognition system within the MeCO ro
 
 The hand gesture recognition system consists of two main parts: hand detection and gesture classification. Initially, the YOLOv7-tiny algorithm detects the region where hands are present in the given image. After detection, these regions are cropped from the images and then classified using a multitasking network. The structure of this multitasking network is shown above.
 
-Our multitasking network leverages enriched features to attain high-performance classification with fewer model parameters. We achieved this by training the network jointly on the classification and pose estimation tasks, with the pose estimation task serving as an auxiliary task that is not used in the application. The network starts by generating dense features from input images using a CNN backbone. These features are then combined with a learnable class embedding and fed into a ViT encoder. The class embedding is then separated from the features and classified by a linear layer. To further enhance the transformer's learned features, the remaining features are decoded by a simple decoder to generate hand poses.
+Our multitasking network leverages enriched features to attain high-performance classification with fewer model parameters. We achieved this by training the network jointly on the classification and pose estimation tasks, with the pose estimation task serving as an auxiliary task that is not used in the application. The network starts by generating dense features from input images using a CNN backbone. These features are then combined with a learnable class embedding and fed into a ViT encoder. Afterward, the class embedding is separated from the features and classified by a linear layer. To further enhance the transformer's learned features, the remaining features are decoded by a simple decoder to generate hand poses.
 
 
 ### Dataset
 
-We trained our model on the large-scale hand gesture dataset: [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid). We include the no_gesture label in the total class. Therefore we have 19 classes in total.
+We trained our model on the large-scale hand gesture dataset: [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid). We include the no_gesture class, resulting in 19 classes in total.
 
 ### Results
 
-<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/confusion_matrix.png" alt="confusion_matrix" height="600"/>
+<img src="https://github.com/kunnnnethan/hand-gesture-recognition/blob/main/images/confusion_matrix.png" alt="confusion_matrix" height="700"/>
 
-This result is tested on the test data from HaGRID.
+This result is tested on the HaGRID test data.
 
 
 ### Usage
@@ -39,7 +39,7 @@ This result is tested on the test data from HaGRID.
         -e DISPLAY=$DISPLAY \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v $HOME/.Xauthority:/root/.Xauthority \
-        -v PATH_OF_THE_REPOSITORY:/workspace \
+        -v <PATH_OF_THE_REPOSITORY>:/workspace \
         hand-gesture:latest
     ```
 
@@ -48,7 +48,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
 
     To reduce training time and save CPU resources, we crop the hand region first from the original data:
     ```
-    python extract_data.py --root_dir DOWNLOADED_HAGRID_DATA
+    python extract_data.py --root_dir <DOWNLOADED_HAGRID_DATA>
     ```
     (Optional) Run display_data.py to check if data are loaded correctly.
     ```
@@ -74,7 +74,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
     python export.py \
         --data_config configs/hagrid.yaml \
         --image_size 192 192
-        --weight_path YOUR_MODEL_WEIGHT_PATH
+        --weight_path <YOUR_MODEL_WEIGHT_PATH>
     ```
     You can also download the [pretrained weights](https://drive.google.com/file/d/1gtGPClNuARtZHsyX595p0VBBCqJDOqxV/view?usp=sharing).
     
@@ -85,7 +85,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
         --data_config configs/hagrid.yaml \
         --cls_weight gesture-classifier.onnx \
         --det_weight yolov7-tiny-diver.onnx \
-        --data_path YOUR_TEST_DATA
+        --data_path <YOUR_TEST_DATA>
     ```
 
 ### References
