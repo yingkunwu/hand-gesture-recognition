@@ -17,7 +17,7 @@ RUN apt-get update \
 RUN python -m pip install lightning
 
 # Install required packages
-RUN pip install mediapipe tqdm pyyaml einops tensorboard 
+RUN pip install mediapipe tqdm pyyaml einops tensorboard onnx onnxruntime-gpu
 
 RUN python -m pip install scipy
 RUN pip install -U scikit-learn
