@@ -24,8 +24,7 @@ class MultiTaskModule(LightningModule):
         image_size = kwargs.get('image_size')
         weight_path = kwargs.get('weight_path')
 
-        self.model = MultiTaskNet(
-            num_joints, num_classes, feature_size=image_size[0] // 16)
+        self.model = MultiTaskNet(num_joints, num_classes, image_size)
         self.model = self.model.to(self.device)
 
         if not os.path.exists(weight_path):

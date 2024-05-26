@@ -30,8 +30,7 @@ class MultiTaskModule(LightningModule):
         num_classes = data_cfg['num_classes']
         self.names = data_cfg['names']
 
-        self.model = MultiTaskNet(
-            num_joints, num_classes, feature_size=image_size[0] // 16)
+        self.model = MultiTaskNet(num_joints, num_classes, image_size)
 
         self.joints_loss = JointsMSELoss(use_target_weight=True)
         self.class_loss = ClassificationLoss()
@@ -230,7 +229,7 @@ def run(args, data_cfg):
                       devices=[args.device],
                       precision=32,
                       max_epochs=args.epochs,
-                      deterministic=True,
+                      deterministic=False,
                       num_sanity_val_steps=1,
                       logger=logger,
                       callbacks=callbacks)

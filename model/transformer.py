@@ -6,53 +6,25 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 
 
-class PositionEncoding2d(nn.Module):
-    """
-    Positional encoding for 2D inputs
-    """
+# Pos embedding
+def pos_emb_sincos_2d(h, w, dim, temperature=10000, dtype=torch.float32):
+    """Pos embedding for 2D image"""
+    y, x = torch.meshgrid(
+        torch.arange(h), torch.arange(w), indexing="ij"
+    )
+    assert (dim % 4) == 0, "dimension must be divisible by 4"
 
-    def __init__(self, d_model, feature_size,
-                 temperature=10000, scale=2 * math.pi, eps=1e-6):
-        """
-        Args:
-            dim: the dimension of the encoded position
-            feature_size: the size of the features' width and height
-        """
-        super().__init__()
+    # 1D pos embedding
+    omega = torch.arange(dim // 4, dtype=dtype)
+    omega = 1.0 / (temperature ** omega)
 
-        area = torch.ones(feature_size, feature_size)  # [h, w]
-        y_embed = area.cumsum(0, dtype=torch.float32)
-        x_embed = area.cumsum(1, dtype=torch.float32)
+    # 2D pos embedding
+    y = y.flatten()[:, None] * omega[None, :]
+    x = x.flatten()[:, None] * omega[None, :]
 
-        y_embed = y_embed / (y_embed[-1:, :] + eps) * scale
-        x_embed = x_embed / (x_embed[:, -1:] + eps) * scale
-
-        dim_t = torch.arange(d_model // 2, dtype=torch.float32)
-        dim_t = temperature ** (2 * (dim_t // 2) / (d_model // 2))
-
-        pos_x = x_embed[:, :, None] / dim_t
-        pos_y = y_embed[:, :, None] / dim_t
-
-        pos_x = torch.stack(
-            (pos_x[:, :, 0::2].sin(),
-             pos_x[:, :, 1::2].cos()), dim=3).flatten(2)
-        pos_y = torch.stack(
-            (pos_y[:, :, 0::2].sin(),
-             pos_y[:, :, 1::2].cos()), dim=3).flatten(2)
-
-        pos = torch.cat((pos_y, pos_x), dim=2)
-        pos = rearrange(pos, 'h w c -> (h w) c')
-
-        # pos size: [H x W, C]
-        self.register_buffer('pos', pos, persistent=False)
-
-    def forward(self, x):
-        """
-        Args:
-            x: [N, (H x W), C]
-        """
-        pos = repeat(self.pos, 'l c -> b l c', b=x.size(0))
-        return x + pos
+    # concat sin and cos
+    pe = torch.cat((x.sin(), x.cos(), y.sin(), y.cos()), dim=1)
+    return pe.type(dtype)
 
 
 class FeedForward(nn.Module):
@@ -129,7 +101,11 @@ class ViT(nn.Module):
     def __init__(self, num_classes, num_joints, feature_size,
                  dim, depth, heads, head_dim, mlp_dim, dropout=0.):
         super().__init__()
-        self.pos_embedding = PositionEncoding2d(dim, feature_size)
+        self.pos_embedding = pos_emb_sincos_2d(
+            h=feature_size[0],
+            w=feature_size[1],
+            dim=dim,
+        )
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
 
         self.transformer = Transformer(
@@ -155,7 +131,9 @@ class ViT(nn.Module):
         b, c, h, w = x.shape
 
         x = rearrange(x, 'b c h w -> b (h w) c')
-        x = self.pos_embedding(x)
+
+        # add positional embedding
+        x += self.pos_embedding.to(x.device)
 
         cls_token = repeat(self.cls_token, '() n d -> b n d', b=b)
 

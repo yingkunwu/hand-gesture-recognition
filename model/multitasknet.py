@@ -6,7 +6,7 @@ from .transformer import ViT
 
 
 class MultiTaskNet(nn.Module):
-    def __init__(self, num_joints, num_classes, feature_size):
+    def __init__(self, num_joints, num_classes, image_size):
         super(MultiTaskNet, self).__init__()
 
         self.encoder = GELANNet("small")
@@ -14,11 +14,12 @@ class MultiTaskNet(nn.Module):
         self.decoder = ViT(
             num_classes=num_classes,
             num_joints=num_joints,
-            feature_size=feature_size,
-            dim=256, depth=4,
+            feature_size=[image_size[0] // 16, image_size[1] // 16],
+            dim=256,
+            depth=4,
             heads=8,
-            head_dim=256,
-            mlp_dim=512)
+            head_dim=32,
+            mlp_dim=256)
 
     def forward(self, x):
         features = self.encoder(x)
