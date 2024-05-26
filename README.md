@@ -46,7 +46,9 @@ This result is tested on the HaGRID test data.
 1. **Dataset** </br>
 Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Dataset](https://github.com/hukenovs/hagrid).
 
-    To reduce training time and save CPU resources, we crop the hand region first from the original data:
+    We utilized [MediaPipe](https://github.com/google-ai-edge/mediapipe) to generate hand pose annotations as ground truth for supervision.
+    In addition, to reduce training time and save CPU resources, we crop the hand region from the original data.
+    Use the following commands to extract hand images and annotations for training:
     ```bash
     python extract_data.py --root_dir <DOWNLOADED_HAGRID_DATA>
     ```
@@ -55,7 +57,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
     python display_data.py
     ```
 
-2. **Train** </br>
+3. **Train** </br>
     ```bash
     python train.py \
         --data_config configs/hagrid.yaml \
@@ -68,7 +70,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
         --image_size 192 192 \
     ```
 
-3. **Export** </br>
+4. **Export** </br>
     Export PyTorch model to ONNX
     ```bash
     python export.py \
@@ -78,7 +80,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
     ```
     You can also download the [pretrained model](https://drive.google.com/file/d/1gtGPClNuARtZHsyX595p0VBBCqJDOqxV/view?usp=sharing).
     
-4. **Inference** </br>
+5. **Inference** </br>
     For inference, we use YOLOv7-tiny to detect the hand region from the whole image. The [detector](https://drive.google.com/file/d/16HTdppn7gvbuPTLh7DZn01vbNU-E_Xvu/view?usp=sharing) is trained on data collected by the Interactive Robotics and Vision Laboratory at the University of Minnesota. After extracting hand regions from images, it will be classified by the multi-tasking model. The path of the inference data should be either a video file or a folder containing image files.
     ```bash
     python detect.py \
