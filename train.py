@@ -229,7 +229,7 @@ def run(args, data_cfg):
                       devices=[args.device],
                       precision=32,
                       max_epochs=args.epochs,
-                      deterministic=False,
+                      deterministic=True,
                       num_sanity_val_steps=1,
                       logger=logger,
                       callbacks=callbacks)
