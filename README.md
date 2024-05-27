@@ -78,7 +78,7 @@ Download images and annotations from [HaGRID - HAnd Gesture Recognition Image Da
         --image_size 192 192
         --weight_path <YOUR_MODEL_WEIGHT_PATH>
     ```
-    You can also download the [pretrained model](https://drive.google.com/file/d/1gtGPClNuARtZHsyX595p0VBBCqJDOqxV/view?usp=sharing).
+    You can also download the [model](https://drive.google.com/file/d/1-XHFfWCZdfsjR8I58nJ94p2-3uK45Ehb/view?usp=sharing) we trained for demo.
     
 5. **Inference** </br>
     For inference, we use YOLOv7-tiny to detect the hand region from the whole image. The [detector](https://drive.google.com/file/d/16HTdppn7gvbuPTLh7DZn01vbNU-E_Xvu/view?usp=sharing) is trained on data collected by the Interactive Robotics and Vision Laboratory at the University of Minnesota. After extracting hand regions from images, it will be classified by the multi-tasking model. The path of the inference data should be either a video file or a folder containing image files.
