@@ -6,7 +6,6 @@ import argparse
 import torch
 import numpy as np
 import onnxruntime as ort
-import torchvision.transforms as transforms
 
 from libs.utils import get_max_preds
 from libs.draw import draw_bones, draw_joints
@@ -67,12 +66,6 @@ class Detect:
         # load hand detector
         self.detector = self.load_onnx_model(det_weight)
 
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-
     def load_onnx_model(self, weight_path):
         if not os.path.exists(weight_path):
             assert False, "Model is not exist in {}".format(weight_path)
@@ -110,16 +103,16 @@ class Detect:
         # cv2.imshow("hand", img)
         # cv2.waitKey(0)
 
-        mean = np.array([0.485, 0.456, 0.406])
-        std = np.array([0.229, 0.224, 0.225])
-        img = (img - mean) / std
-
-        img = img.transpose((2, 0, 1))
-        img = np.expand_dims(img, 0)
-        img = np.ascontiguousarray(img)
-
-        im = img.astype(np.float32)
+        im = img.transpose((2, 0, 1))
+        im = im.astype(np.float32)
         im /= 255
+
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        im = (im - mean.reshape(3, 1, 1)) / std.reshape(3, 1, 1)
+
+        im = np.expand_dims(im, 0)
+        im = np.ascontiguousarray(im)
 
         return im
 
